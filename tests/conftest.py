@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -174,6 +174,10 @@ def _apuntar_la_app_a_la_base_de_pruebas(engine: Engine) -> Iterator[None]:
     """Hace que la aplicación use la misma base que las pruebas."""
     os.environ["PAYCORE_DATABASE_URL"] = TEST_URL
     os.environ.setdefault("PAYCORE_JWT_SECRET", "secreto-solo-para-pruebas-con-32-bytes-o-mas")
+    # La limitación de peticiones se apaga por defecto en las pruebas: casi
+    # todas registran varios usuarios seguidos y chocarían con el límite sin
+    # que eso sea lo que están verificando. test_rate_limit.py la enciende.
+    os.environ.setdefault("PAYCORE_RATE_LIMIT_ENABLED", "false")
 
     from app.platform import config, db
 
@@ -184,6 +188,16 @@ def _apuntar_la_app_a_la_base_de_pruebas(engine: Engine) -> Iterator[None]:
     config.get_settings.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _limpiar_limitadores() -> Iterator[None]:
+    """Ninguna prueba hereda el consumo de fichas de la anterior."""
+    from app.api.deps import reset_rate_limiters
+
+    reset_rate_limiters()
+    yield
+    reset_rate_limiters()
+
+
 @pytest.fixture
 def cliente(limpiar: None):
     from fastapi.testclient import TestClient
@@ -192,6 +206,34 @@ def cliente(limpiar: None):
 
     with TestClient(create_app()) as c:
         yield c
+
+
+@pytest.fixture
+def activar_rate_limit() -> Iterator[Callable[[], None]]:
+    """Enciende la limitación de peticiones en mitad de una prueba.
+
+    Se activa a demanda y no al empezar porque la preparación de casi
+    cualquier caso (registrar usuarios, pedir tokens) consume peticiones que
+    gastarían la ráfaga antes de llegar a lo que se quiere medir.
+    """
+    from app.api.deps import reset_rate_limiters
+    from app.platform import config
+
+    anterior = os.environ.get("PAYCORE_RATE_LIMIT_ENABLED")
+
+    def activar() -> None:
+        os.environ["PAYCORE_RATE_LIMIT_ENABLED"] = "true"
+        config.get_settings.cache_clear()
+        reset_rate_limiters()
+
+    yield activar
+
+    if anterior is None:
+        os.environ.pop("PAYCORE_RATE_LIMIT_ENABLED", None)
+    else:
+        os.environ["PAYCORE_RATE_LIMIT_ENABLED"] = anterior
+    config.get_settings.cache_clear()
+    reset_rate_limiters()
 
 
 @dataclass

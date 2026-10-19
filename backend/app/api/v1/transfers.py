@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Header, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUserId
+from app.api.deps import CurrentUserId, limitar_transferencia
 from app.api.errors import error_body
 from app.api.schemas import TransferRequest, TransferResponse
 from app.modules.accounts import service as accounts_service
@@ -82,7 +82,9 @@ def _cuerpo_rechazo(resultado: transfers_service.TransferResult) -> dict[str, An
             "description": "Fondos insuficientes, datos inválidos, o la clave de "
             "idempotencia se reutilizó con un cuerpo distinto"
         },
+        429: {"description": "Demasiadas transferencias en poco tiempo"},
     },
+    dependencies=[Depends(limitar_transferencia)],
 )
 def create_transfer(
     peticion: TransferRequest,

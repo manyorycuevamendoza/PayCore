@@ -211,11 +211,11 @@ Prefijo de versión: `/api/v1`. Todos los importes viajan como **entero de cént
 
 | Método | Ruta | Auth | Éxito | Errores previstos |
 |---|---|---|---|---|
-| POST | `/auth/register` | no | 201 | 409 email ya registrado, 422 validación |
-| POST | `/auth/login` | no | 200 (token) | 401 credenciales inválidas, 429 rate limit |
+| POST | `/auth/register` | no | 201 | 409 email ya registrado, 413 cuerpo excesivo, 422 validación, 429 rate limit |
+| POST | `/auth/login` | no | 200 (token) | 401 credenciales inválidas, 413 cuerpo excesivo, 429 rate limit |
 | GET | `/accounts/me` | sí | 200 | 401 |
 | GET | `/accounts/me/balance` | sí | 200 | 401 |
-| POST | `/transfers` | sí | 201 | 400 falta `Idempotency-Key`, 401, 404 destino inexistente, 409 clave en curso, 422 fondos insuficientes o reutilización de clave con otro cuerpo, 429 rate limit |
+| POST | `/transfers` | sí | 201 | 400 falta `Idempotency-Key`, 401, 404 destino inexistente, 409 clave en curso, 413 cuerpo excesivo, 422 fondos insuficientes o reutilización de clave con otro cuerpo, 429 rate limit, 503 reintentos de serialización agotados |
 | GET | `/transfers/{id}` | sí | 200 | 401, 404 si no participa en la operación |
 | GET | `/accounts/me/transactions` | sí | 200 (paginado) | 401, 422 paginación inválida |
 | GET | `/health` | no | 200 | - |
@@ -260,13 +260,15 @@ El objetivo no es tener dos caminos en producción, es poder publicar una tabla 
 | [ADR-0006](decisions/0006-idempotencia.md) | Idempotencia persistida en la misma transacción |
 | [ADR-0007](decisions/0007-autenticacion.md) | JWT de vida corta y Argon2id |
 | [ADR-0008](decisions/0008-sin-ia-en-el-mvp.md) | Sin IA en el MVP y límite duro sobre decisiones de dinero |
+| [ADR-0009](decisions/0009-rate-limiting.md) | Limitación de peticiones por cubo de fichas en memoria del proceso |
 
 ## 9. Lo que esta arquitectura no resuelve
 
 Declarado por adelantado para no venderlo como lo que no es:
 
 - **Un solo nodo de base de datos.** No hay alta disponibilidad ni replicación. El techo de escritura es el de una instancia.
-- **El rate limiting del MVP es por proceso.** Con varios workers, el límite efectivo se multiplica por el número de procesos. Resolverlo bien exige un contador compartido, y esa es la condición de reingreso de Redis documentada en [stack.md](stack.md).
+- **El rate limiting del MVP es por proceso.** Con varios workers, el límite efectivo se multiplica por el número de procesos: con cuatro workers la ráfaga real del login es 20 y no 5. Resolverlo bien exige un contador compartido, y esa es la condición de reingreso de Redis, detallada en [ADR-0009](decisions/0009-rate-limiting.md).
+- **No se confía en `X-Forwarded-For`.** Detrás de un proxy inverso, el limitador del login vería la IP del proxy y no la del cliente. Aceptar esa cabecera sin un proxy de confianza que la reescriba sería peor, porque es trivial de falsificar.
 - **JWT sin revocación inmediata.** Un token robado es válido hasta que expira. Se mitiga con vida corta; la solución completa es una lista de revocación o sesiones en base de datos.
 - **Sin cifrado en reposo ni gestión de claves.** Fuera de alcance para datos ficticios.
 - **Una cuenta por usuario.** El modelo admite varias (`accounts.user_id` no es la clave primaria), pero el MVP impone una por unicidad, y la autorización ya está escrita para el caso general.

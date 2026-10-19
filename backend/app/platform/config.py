@@ -51,6 +51,15 @@ class Settings(BaseSettings):
 
     idempotency_ttl_hours: int = 24
 
+    # Limitación de peticiones. Ráfaga y ritmo sostenido por minuto.
+    # El login se limita por IP y la transferencia por usuario autenticado.
+    rate_limit_enabled: bool = True
+    login_rate_burst: int = 5
+    login_rate_per_minute: int = 10
+    transfer_rate_burst: int = 10
+    transfer_rate_per_minute: int = 60
+    max_request_bytes: int = 16 * 1024
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
     # RFC 7518, sección 3.2: con HS256 la clave debe tener al menos el tamaño

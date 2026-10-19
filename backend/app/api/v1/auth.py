@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.deps import limitar_login
 from app.api.schemas import (
     LoginRequest,
     RegisterRequest,
@@ -25,7 +26,9 @@ router = APIRouter(prefix="/auth", tags=["autenticación"])
     responses={
         409: {"description": "El correo ya está registrado"},
         422: {"description": "Datos inválidos o alias en uso"},
+        429: {"description": "Demasiados intentos desde este origen"},
     },
+    dependencies=[Depends(limitar_login)],
 )
 def register(peticion: RegisterRequest) -> UserResponse:
     def operacion(session):
@@ -50,7 +53,11 @@ def register(peticion: RegisterRequest) -> UserResponse:
     "/login",
     response_model=TokenResponse,
     summary="Obtener un token de acceso",
-    responses={401: {"description": "Credenciales inválidas"}},
+    responses={
+        401: {"description": "Credenciales inválidas"},
+        429: {"description": "Demasiados intentos desde este origen"},
+    },
+    dependencies=[Depends(limitar_login)],
 )
 def login(peticion: LoginRequest) -> TokenResponse:
     with unit_of_work() as session:

@@ -8,9 +8,9 @@ Motor transaccional para una billetera digital simulada, construido para demostr
 
 ## Estado actual
 
-El proyecto está en construcción. Fases 1, 2 y 3 completadas (investigación, justificación del stack y diseño). La Fase 4 está casi terminada: hitos H1 a H8, con **86 pruebas en verde**.
+El proyecto está en construcción. **Backend terminado** (Fases 1 a 4, hitos H1 a H9) con **96 pruebas en verde**. Faltan el frontend, las pruebas de carga y el informe técnico.
 
-Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, control de concurrencia con dos estrategias comparables, idempotencia persistente e historial de movimientos.
+Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, control de concurrencia con dos estrategias comparables, idempotencia persistente, historial de movimientos y limitación de peticiones.
 
 **Las seis pruebas del enunciado están hechas y verificadas en la base de datos**, no en las respuestas HTTP:
 
@@ -23,7 +23,16 @@ Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y
 | E | Fallos antes y después del commit, y caída del proceso de base de datos | Atomicidad e idempotencia verificadas |
 | F | Operar sobre cuentas ajenas e importes inválidos | 19 pruebas por riesgo del OWASP API Top 10 2023 |
 
-Falta el rate limiting (H9), el frontend, las pruebas de carga con Locust y el informe en LaTeX.
+Falta el frontend en React, las pruebas de carga con Locust y el informe en LaTeX.
+
+### Limitaciones conocidas
+
+Están declaradas por escrito en lugar de presentarse como lo que no son:
+
+- **Un solo nodo de base de datos.** Sin alta disponibilidad ni replicación.
+- **El rate limiting cuenta en memoria del proceso.** Con varios workers el límite efectivo se multiplica por el número de procesos. Ver [ADR-0009](docs/decisions/0009-rate-limiting.md).
+- **JWT sin revocación inmediata.** Un token robado vale hasta que caduca; se mitiga con vida corta de 15 minutos.
+- **Docker Compose no es un despliegue de producción.**
 
 ### Levantarlo
 

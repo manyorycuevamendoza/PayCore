@@ -9,7 +9,7 @@ Estado al 18 de octubre de 2026.
 | 1. Investigación | [docs/research.md](research.md) | **Completada** |
 | 2. Justificación del stack | [docs/stack.md](stack.md), 8 ADRs en [docs/decisions/](decisions/) | **Completada** |
 | 3. Diseño funcional | [docs/architecture.md](architecture.md) | **Completada** (diseño propuesto, sin código) |
-| 4. Backend | API FastAPI, migraciones, invariantes | **En curso** (H1 a H8 hechos; falta H9, rate limiting) |
+| 4. Backend | API FastAPI, migraciones, invariantes | **Completada** (H1 a H9) |
 | 5. Interfaz web | React + Vite | Pendiente |
 | 6. Pruebas A-F | Suite pytest | **Completada**: A, B, C, D, E y F hechas y verificadas. 86 pruebas |
 | 7. Rendimiento | Locust, CSV y gráficos reales | Pendiente |
@@ -60,9 +60,10 @@ Inyección de fallo antes del `COMMIT`, después del `COMMIT` y antes de entrega
 **Criterio:** Prueba E. Tras el fallo previo al commit, cero asientos. Tras el fallo posterior al commit, el reintento con la misma clave devuelve la respuesta original y **no** crea asientos nuevos.
 **Verificado:** sí, los tres casos. Se añadió un tercero que no estaba planificado: matar el proceso servidor de PostgreSQL a mitad de la transacción con `pg_terminate_backend`, que es lo más parecido a un corte de luz reproducible. También una contraprueba con dos claves distintas que sí duplica, para dejar claro que lo que evita el duplicado es la clave y no otra propiedad del sistema.
 
-### H9. Rate limiting y manejo de errores
+### H9. Rate limiting y manejo de errores — **completado**
 Límite por usuario e IP en login y transferencias, formato uniforme de error, `request_id` correlacionado en logs JSON.
 **Criterio:** prueba que satura el límite y espera 429. Prueba que afirma que ninguna respuesta de error contiene traza.
+**Verificado:** 10 pruebas más, 96 en total. Cubo de fichas sin dependencias externas, clave por origen en el login y por usuario en la transferencia, con `Retry-After`. Se añadió un tope de 16 KiB de cuerpo (413) que no estaba en el plan. Comprobado también contra el stack real: el sexto intento de login devuelve 429 con `retry-after: 6`. Decisión y su limitación en [ADR-0009](decisions/0009-rate-limiting.md).
 
 ### H10. Frontend
 Login, panel, saldo, formulario de transferencia, confirmación, historial, estados de error y de carga, aviso de prototipo educativo con fondos simulados.

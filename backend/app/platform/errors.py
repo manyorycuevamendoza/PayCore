@@ -18,10 +18,14 @@ class PayCoreError(Exception):
     message: str = "Ha ocurrido un error inesperado."
 
     def __init__(
-        self, message: str | None = None, details: dict[str, Any] | None = None
+        self,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.message = message or self.message
         self.details = details or {}
+        self.headers = headers or {}
         super().__init__(self.message)
 
 

@@ -60,6 +60,9 @@
           },
           "422": {
             "description": "Datos inválidos o alias en uso"
+          },
+          "429": {
+            "description": "Demasiados intentos desde este origen"
           }
         }
       }
@@ -94,6 +97,9 @@
           },
           "401": {
             "description": "Credenciales inválidas"
+          },
+          "429": {
+            "description": "Demasiados intentos desde este origen"
           },
           "422": {
             "description": "Validation Error",
@@ -288,6 +294,9 @@
           },
           "422": {
             "description": "Fondos insuficientes, datos inválidos, o la clave de idempotencia se reutilizó con un cuerpo distinto"
+          },
+          "429": {
+            "description": "Demasiadas transferencias en poco tiempo"
           }
         }
       }
