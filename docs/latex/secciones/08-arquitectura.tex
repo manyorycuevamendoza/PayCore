@@ -1,0 +1,50 @@
+\section{Arquitectura propuesta}
+\label{sec:arquitectura}
+
+\subsection{Vista de componentes}
+
+PayCore es un monolito modular: un proceso, un despliegue y una base de datos.
+La figura~\ref{fig:arquitectura} muestra la organización.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{0.95\textwidth}{!}{\input{diagramas/arquitectura}}
+\caption{Componentes de PayCore. El módulo \codigo{transfers} orquesta a
+\codigo{accounts}, \codigo{ledger} e \codigo{idempotency} dentro de una única
+transacción de base de datos gestionada por la unidad de trabajo de
+\codigo{platform}.}
+\label{fig:arquitectura}
+\end{figure}
+
+\subsection{Regla de frontera}
+
+\textbf{Ningún módulo accede a las tablas de otro.} Las interacciones pasan
+por los servicios de cada módulo. La regla es de disciplina, no está impuesta
+por el compilador, y por eso queda documentada aquí y en el registro de
+decisión correspondiente. \estado{implementado}
+
+El núcleo de dominio no importa FastAPI ni conoce HTTP, lo que permite probar
+la lógica de transferencia sin levantar un servidor. Se aplicó el estilo de
+puertos y adaptadores solo donde se paga solo, sin convertirlo en una
+ceremonia que multiplique las capas.
+
+\subsection{Por qué no microservicios}
+
+Repetido aquí porque es la pregunta más probable en una entrevista: la
+transferencia debe ser atómica, y en un monolito con una base de datos la
+atomicidad es un \codigo{COMMIT}. Separar cuentas y libro mayor en servicios
+con bases de datos distintas obliga a implementar Saga o un commit en dos
+fases, con compensaciones, estados intermedios observables y mucha más
+superficie de error. Se estaría cambiando una garantía fuerte y gratuita por
+una débil y cara, a cambio de una escalabilidad que este sistema no necesita.
+
+Las fronteras entre módulos son, además, el mapa de una extracción futura si
+alguna vez hiciera falta.
+
+\subsection{Camino de evolución documentado}
+
+La arquitectura orientada a eventos se descarta como núcleo pero se reconoce
+como la vía natural para lo que ocurre \emph{después} de una transferencia:
+notificaciones, puntuación de riesgo asíncrona y analítica. El libro mayor,
+al ser de solo inserción, ya tiene la forma de un registro de eventos.
+\estado{diseño}

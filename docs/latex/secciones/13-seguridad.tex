@@ -1,0 +1,105 @@
+\section{Seguridad y validaciones}
+\label{sec:seguridad}
+
+El trabajo de seguridad se ordenó por el OWASP API Security Top~10 de
+2023~\cite{owaspapi2023}, porque convierte \enquote{el proyecto es seguro} en
+una tabla con una prueba por fila.
+
+\begin{table}[htbp]
+\centering
+\caption{Riesgos de OWASP API Security Top 10 (2023) y su mitigación.}
+\label{tab:owasp}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Riesgo} & \textbf{Mitigación en PayCore} & \textbf{Verificación} \\
+\midrule
+API1 Autorización rota a nivel de objeto &
+  La cuenta origen sale del \codigo{sub} del token, nunca del cuerpo. Los
+  recursos ajenos devuelven 404 &
+  Prueba F: un tercero pide una operación ajena y recibe 404 \\
+API2 Autenticación rota &
+  Argon2id con los parámetros mínimos de OWASP; JWT de vida corta; secreto de
+  al menos 32 bytes &
+  Prueba que lee el hash de la base; pruebas de token ausente, caducado y
+  manipulado \\
+API3 Autorización rota a nivel de propiedad &
+  Esquemas de entrada y salida explícitos con campos extra prohibidos &
+  Un \codigo{POST} con \codigo{balance\_cents} se rechaza con 422 \\
+API4 Consumo de recursos sin límite &
+  Cubo de fichas por origen y por usuario; paginación obligatoria; tope de
+  16 KiB de cuerpo &
+  Pruebas de 429 y de 413 \\
+API5 Autorización rota a nivel de función &
+  Dependencia de autenticación aplicada a nivel de router &
+  Pruebas de acceso sin token a cada ruta protegida \\
+API6 Acceso sin límite a flujos sensibles &
+  La transferencia exige clave de idempotencia y está limitada por usuario &
+  Prueba C y prueba de limitación \\
+API7 Falsificación de petición del lado del servidor &
+  PayCore no hace peticiones salientes a URL proporcionadas por el usuario &
+  No aplicable, documentado \\
+API8 Configuración incorrecta &
+  Sin secretos en el repositorio; CORS restringido; errores sin traza;
+  dependencias fijadas &
+  Prueba que afirma que ninguna respuesta de error contiene traza \\
+API9 Inventario deficiente &
+  OpenAPI versionada y comparada en CI; prefijo \codigo{/api/v1} &
+  El CI falla si la especificación diverge \\
+API10 Consumo inseguro de API de terceros &
+  PayCore no consume API externas & No aplicable, documentado \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Contraseñas}
+
+Argon2id con 19 MiB de memoria, dos iteraciones y un grado de paralelismo, que
+es la configuración mínima que recomienda la hoja de OWASP sobre
+almacenamiento de contraseñas~\cite{owasppwd}. Los parámetros no son una
+elección arbitraria sino una cifra citable, y una prueba lee el hash
+directamente de la base para comprobar que lleva el prefijo
+\codigo{\$argon2id\$} y la marca \codigo{m=19456,t=2,p=1}. \estado{verificado}
+
+El inicio de sesión devuelve el \textbf{mismo error} para un correo
+inexistente y una contraseña incorrecta, y consume un tiempo comparable en
+ambos casos, para no permitir enumerar qué correos están registrados.
+
+\subsection{Tokens}
+
+JWT firmado con HS256 y vida de quince minutos. La configuración rechaza en el
+arranque cualquier secreto de menos de 32 bytes, que es el tamaño que exige
+RFC 7518 para esa familia de algoritmos~\cite{rfc7518}. Esa validación se
+añadió porque la biblioteca avisaba de una clave corta durante las pruebas:
+era preferible fallar al arrancar que emitir tokens débiles en silencio.
+
+\subsection{Limitación de peticiones}
+
+Cubo de fichas sin dependencias externas, con clave distinta por endpoint: el
+inicio de sesión se limita por dirección de origen, porque todavía no se sabe
+quién pide, y la transferencia por usuario autenticado, porque limitarla por
+dirección castigaría a toda una red compartida.
+
+Se eligió cubo de fichas y no ventana fija porque la ventana fija permite el
+doble del límite a caballo entre dos ventanas. El limitador purga los cubos
+inactivos: un diccionario que crece con cada dirección nueva sería el mismo
+problema de consumo de recursos que pretende evitar.
+
+\textbf{No se confía en \codigo{X-Forwarded-For}}: es trivial de falsificar
+salvo que exista un proxy de confianza que la reescriba, y PayCore no tiene
+ninguno.
+
+\paragraph{Limitación declarada.} El contador vive en memoria de cada proceso.
+Con cuatro workers, la ráfaga efectiva del inicio de sesión es veinte y no
+cinco. Está escrito en el código, en el registro de decisión y en el
+repositorio, en lugar de presentarse como una defensa que no es. Esa es
+también la condición escrita de reingreso de Redis.
+
+\subsection{Validación de entradas}
+
+Toda entrada pasa por esquemas con campos extra prohibidos. Reglas específicas
+del dinero: importe entero y estrictamente positivo, con un tope por
+operación; emisor distinto de receptor; moneda fija. El uso del mapeador con
+parámetros vinculados elimina la inyección SQL por construcción, y hay pruebas
+que lo comprueban con cadenas maliciosas en el alias de destino.
+\estado{verificado}

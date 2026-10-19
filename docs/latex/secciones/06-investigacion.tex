@@ -1,0 +1,125 @@
+\section{Investigación y análisis de alternativas}
+\label{sec:investigacion}
+
+Antes de escribir código se investigaron cinco problemas con fuentes
+contrastables. Esta sección resume las alternativas evaluadas y la
+recomendación adoptada. El desarrollo completo está en el repositorio, en
+\codigo{docs/research.md}.
+
+\subsection{Representación del importe}
+
+\begin{table}[htbp]
+\centering
+\caption{Alternativas para representar el dinero.}
+\label{tab:dinero}
+\small
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Opción} & \textbf{Ventajas} & \textbf{Limitaciones} \\
+\midrule
+\codigo{BIGINT} en céntimos & Aritmética exacta y rápida; la invariante
+  \enquote{suma de asientos igual a cero} es exacta por construcción &
+  No admite fracciones de céntimo; obliga a convertir en la frontera \\
+\codigo{NUMERIC(18,2)} & Legible en SQL, escala explícita, exacto &
+  Aritmética más lenta; riesgo de deriva de escala \\
+\codigo{MONEY} & Tipo dedicado & Precisión dependiente de \codigo{lc\_monetary}
+  y de la configuración regional \\
+\codigo{FLOAT} & Ninguna aquí & Descartado por la documentación del
+  motor~\cite{pg16money} y por~\cite{goldberg1991} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Recomendación adoptada:} enteros de céntimos en \codigo{BIGINT}.
+\codigo{NUMERIC} es una opción igualmente defendible; se descarta por preferir
+que el cuadre global sea cierto en aritmética entera.
+
+\subsection{Fuente de verdad del saldo}
+
+Se evaluaron tres opciones: una columna mutable sin histórico, un libro mayor
+puro con el saldo calculado al vuelo, y la combinación de ambos.
+
+La columna mutable sola no deja rastro de auditoría: un error sobrescribe el
+saldo sin dejar huella y el cuadre no es verificable de forma independiente.
+El libro mayor puro es auditable, pero la lectura del saldo es $O(n)$
+creciente y aplicar la no negatividad de forma atómica exige agregar el
+histórico bajo bloqueo en cada transferencia.
+
+\textbf{Recomendación adoptada:} libro mayor inmutable como fuente de verdad
+más saldo materializado, escritos en la misma transacción, con una prueba de
+reconciliación que recalcula desde el libro mayor. Es el patrón que describe
+Fowler~\cite{fowler2006} y el que Square adoptó tras observar
+inconsistencias en producción~\cite{square2019}.
+
+\subsection{Control de concurrencia}
+
+\begin{table}[htbp]
+\centering
+\caption{Estrategias de control de concurrencia evaluadas.}
+\label{tab:concurrencia}
+\small
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Estrategia} & \textbf{Ventajas} & \textbf{Limitaciones} \\
+\midrule
+Pesimista con orden determinista &
+  Predecible, sin reintentos, deadlocks eliminados por el orden &
+  Serializa las operaciones sobre una cuenta caliente \\
+\codigo{SERIALIZABLE} con reintento &
+  Más concurrencia si el conflicto es raro; garantía formal &
+  Exige lógica de reintento; bajo contención alta la tasa de abortos
+  crece~\cite{ports2012} \\
+\codigo{UPDATE} condicional atómico &
+  Muy simple; el motor garantiza la atomicidad de la fila &
+  Mezcla validación con escritura; encaja mal con el libro mayor \\
+Cola serializada por cuenta &
+  Elimina la contención por diseño &
+  Exige broker o tabla de cola; complejidad no justificada \\
+Cerrojo de Python &
+  Ninguna aquí &
+  No funciona entre procesos ni entre réplicas. Descartada \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Recomendación adoptada:} implementar las dos primeras tras una opción
+de configuración y \emph{medirlas}. La decisión se detalla en la
+sección~\ref{sec:transacciones} y los resultados en
+la~\ref{sec:rendimiento}.
+
+\subsection{Arquitectura}
+
+Se compararon monolito tradicional, monolito modular, microservicios,
+arquitectura orientada a eventos y hexagonal. El argumento decisivo no es de
+moda sino de garantías: \textbf{la transferencia debe ser atómica}. En un
+monolito con una base de datos, la atomicidad es un \codigo{COMMIT}. Si se
+separan cuentas y libro mayor en servicios con bases distintas, la atomicidad
+desaparece y hay que reintroducirla con Saga o un commit en dos fases, lo que
+supone compensaciones, estados intermedios visibles y mucha más superficie de
+error. Partir el sistema aquí no es una mejora: es cambiar una garantía fuerte
+y gratuita por una débil y cara.
+
+Fowler sostiene además que no se debe empezar un proyecto nuevo con
+microservicios aunque se prevea que será grande, porque establecer fronteras
+correctas es difícil sin patrones de uso reales~\cite{fowler2015}.
+
+\textbf{Recomendación adoptada:} monolito modular con el núcleo de dominio
+aislado.
+
+\subsection{Inteligencia artificial}
+
+Se evaluaron reglas deterministas de riesgo, detección de anomalías no
+supervisada, clasificación supervisada de fraude, modelos fundacionales y
+recuperación aumentada con base de datos vectorial.
+
+Un clasificador supervisado necesitaría transacciones reales etiquetadas, que
+no existen y no se pueden fabricar sin falsear el resultado. Sculley
+\emph{et al.} documentan que el código de modelo es una fracción pequeña de un
+sistema de aprendizaje automático y que el resto es deuda de mantenimiento
+continua~\cite{sculley2015}; incurrir en ella sin datos ni evaluación creíble
+no aporta nada demostrable.
+
+\textbf{Recomendación adoptada:} ninguna IA en el MVP, y un límite permanente
+de diseño: ningún modelo generativo ni estadístico aprueba, rechaza ni
+modifica una transferencia o un saldo. Un sistema no determinista no puede
+estar en la ruta crítica del dinero.

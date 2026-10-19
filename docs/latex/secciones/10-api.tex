@@ -1,0 +1,74 @@
+\section{Diseño e implementación de la API}
+\label{sec:api}
+
+\subsection{Contrato}
+
+Todos los recursos viven bajo el prefijo \codigo{/api/v1}. La especificación
+OpenAPI la genera FastAPI a partir de los propios tipos y está versionada en
+\codigo{docs/openapi.json}; el CI falla si diverge del código, de modo que la
+documentación no puede desincronizarse en silencio. \estado{verificado}
+
+\begin{table}[htbp]
+\centering
+\caption{Endpoints implementados.}
+\label{tab:endpoints}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}llcXl@{}}
+\toprule
+\textbf{Método} & \textbf{Ruta} & \textbf{Auth} & \textbf{Errores previstos} &
+\textbf{Éxito} \\
+\midrule
+POST & \codigo{/auth/register} & no &
+  409 correo repetido, 413, 422, 429 & 201 \\
+POST & \codigo{/auth/login} & no & 401, 413, 429 & 200 \\
+GET & \codigo{/accounts/me} & sí & 401 & 200 \\
+GET & \codigo{/accounts/me/balance} & sí & 401 & 200 \\
+GET & \codigo{/accounts/me/transactions} & sí & 401, 422 & 200 \\
+POST & \codigo{/transfers} & sí &
+  400 falta la clave, 401, 404 destino inexistente, 409 clave en curso, 413,
+  422 fondos o clave reutilizada, 429, 503 & 201 \\
+GET & \codigo{/transfers/\{id\}} & sí & 401, 404 & 200 \\
+GET & \codigo{/health} & no & --- & 200 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Tres decisiones del contrato}
+
+\paragraph{Los importes nunca viajan como decimal.} El campo
+\codigo{amount\_cents} es un entero de céntimos. Para la interfaz se añade
+\codigo{amount\_display}, una cadena ya formateada. Si llega un decimal, la
+petición se rechaza con 422 en lugar de redondearse: redondear en silencio
+sería decidir por el usuario sobre su dinero. \estado{verificado}
+
+\paragraph{404 en lugar de 403 para recursos ajenos.} Cuando alguien pide una
+operación que existe pero en la que no participa, la respuesta es 404. Un 403
+confirmaría la existencia del recurso y permitiría enumerar operaciones
+ajenas, que es la vía de explotación típica de la autorización rota a nivel
+de objeto~\cite{owaspapi2023}.
+
+\paragraph{Forma uniforme del error.} Todas las respuestas de fallo comparten
+estructura y ninguna incluye traza interna. El \codigo{request\_id} aparece
+también en el registro estructurado, lo que permite correlacionar sin exponer
+nada.
+
+\begin{lstlisting}[language=,caption={Cuerpo de error, idéntico para todos los
+fallos.},label={lst:error}]
+{
+  "error": {
+    "code": "insufficient_funds",
+    "message": "El saldo disponible no cubre el importe solicitado.",
+    "request_id": "85006c24b5494c3c89ecdc64df8a5cb6",
+    "details": { "transfer_id": "...", "balance_cents": 7000 }
+  }
+}
+\end{lstlisting}
+
+\subsection{Observabilidad}
+
+Registro estructurado en JSON con un identificador de correlación por
+petición, propagado por un middleware y devuelto en la cabecera
+\codigo{X-Request-ID}. Hay una lista de denegación explícita: nunca se
+registran contraseñas, tokens, cabeceras de autorización ni claves de
+idempotencia completas. Los importes y los identificadores de cuenta sí, por
+ser datos ficticios y necesarios para auditar. \estado{verificado}

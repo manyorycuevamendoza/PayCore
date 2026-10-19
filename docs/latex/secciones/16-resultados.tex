@@ -1,0 +1,94 @@
+\section{Análisis de resultados}
+\label{sec:resultados}
+
+\subsection{Las dos estrategias son igual de correctas}
+
+En las cuatro carreras de escritura, bajo cien usuarios durante sesenta
+segundos y con cuatro procesos compitiendo, la verificación contra PostgreSQL
+dio siempre lo mismo: suma global del libro mayor igual a cero, cero cuentas
+descuadradas y cero saldos negativos. Ese es el resultado que el proyecto
+quería demostrar, y es independiente de la estrategia empleada.
+
+Dicho de otro modo: las garantías no dependen de haber elegido bien entre
+bloqueo pesimista y \codigo{SERIALIZABLE}. Dependen de que las invariantes
+vivan en el motor y de que la transferencia sea una sola transacción.
+
+\subsection{Se diferencian en cuánto trabajo terminan}
+
+Bajo contención máxima, la estrategia pesimista confirma 148,3 transferencias
+por segundo y \codigo{SERIALIZABLE} solo 10,4. Catorce veces menos, aunque su
+tasa de peticiones por segundo (63,1 frente a 147,0) sugiera una diferencia
+mucho menor. La explicación está en la columna de fallos: el 83,72\,\% de las
+peticiones termina en un 503 porque se agotan los tres reintentos ante
+\sqlstate{40001}.
+
+\subsection{La conclusión depende de dónde se mire}
+
+Este es el hallazgo metodológico de la fase. Si el análisis se hubiera quedado
+en las peticiones por segundo que reporta el generador de carga, la conclusión
+habría sido \enquote{\codigo{SERIALIZABLE} rinde un 57\,\% menos}. Contando
+las filas realmente escritas en PostgreSQL, la conclusión es que hace un
+93\,\% menos de trabajo útil.
+
+Son dos afirmaciones muy distintas sobre el mismo sistema, y solo una es
+cierta. Medir la respuesta de la API y verificar que las transacciones se
+registraron no son la misma cosa, y confundirlas es fácil.
+
+\subsection{Comparación con la literatura}
+
+Ports y Grittner reportan para su implementación un coste inferior al 7\,\%
+respecto al aislamiento por instantáneas~\cite{ports2012}. Las mediciones de
+PayCore bajo contención máxima arrojan una diferencia mucho mayor. No hay
+contradicción, y la razón importa:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item Sus cargas de evaluación reparten el trabajo entre muchas filas. El
+    escenario \codigo{caliente} de PayCore concentra \emph{todas} las
+    escrituras en una sola fila, que es el peor caso concebible para una
+    estrategia optimista.
+  \item Su cifra mide el coste de la \emph{técnica} cuando los conflictos son
+    raros. La de PayCore mide el efecto de los \emph{conflictos} cuando son
+    constantes.
+  \item En el escenario de contención baja, con cien usuarios sobre cincuenta
+    cuentas, la diferencia se reduce pero no desaparece: sigue habiendo un
+    27,35\,\% de fallos. Haría falta una dispersión mucho mayor para que
+    \codigo{SERIALIZABLE} compitiera, y ese no es el perfil de carga de una
+    billetera.
+\end{itemize}
+
+\subsection{Verificación de la hipótesis previa}
+
+El registro de decisión sobre concurrencia declaró, \emph{antes} de medir, que
+bajo contención máxima se esperaba que la estrategia optimista degenerase en
+abortos y reintentos. La medición lo confirma. La hipótesis estaba escrita con
+fecha anterior a los datos, lo que permite distinguir una predicción acertada
+de una racionalización posterior.
+
+\subsection{Qué aportó cada tipo de prueba}
+
+\begin{table}[htbp]
+\centering
+\caption{Defectos reales encontrados, y por qué tipo de prueba.}
+\label{tab:hallazgos}
+\small
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Tipo} & \textbf{Qué encontró} & \textbf{Por qué nada más lo veía} \\
+\midrule
+Unitarias y de integración & Nada que las de concurrencia no vieran después &
+  Un solo hilo nunca reproduce una carrera \\
+Concurrencia & La actualización perdida del mapa de identidad: 88
+  transferencias aprobadas de 100 &
+  Las 76 pruebas existentes pasaban todas con el defecto presente \\
+Carga & El agotamiento del pool de conexiones por retener la sesión fuera del
+  hilo & Solo aparece con suficientes peticiones simultáneas y rápidas \\
+Revisión de la propia medición & Una carrera truncada a 34 s que invalidaba
+  una comparación & Los totales parecían razonables; solo las marcas de
+  tiempo lo delataban \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La lectura de este cuadro es la conclusión práctica del proyecto: cada tipo de
+prueba encuentra una clase de defecto que las demás no pueden ver, y eso
+incluye revisar críticamente las propias mediciones.

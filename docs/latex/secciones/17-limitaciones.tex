@@ -1,0 +1,68 @@
+\section{Limitaciones}
+\label{sec:limitaciones}
+
+Se enumeran por escrito, en el informe y en el repositorio, porque conocerlas
+es parte del trabajo y porque la alternativa, dejarlas implícitas, convertiría
+el proyecto en algo que no es.
+
+\subsection{Del sistema}
+
+\begin{description}[leftmargin=0.6cm,style=nextline]
+  \item[Un solo nodo de base de datos.] Sin alta disponibilidad ni
+    replicación. Es un punto único de fallo y el techo de escritura es el de
+    una instancia.
+  \item[La limitación de peticiones cuenta en memoria del proceso.] Con cuatro
+    workers, la ráfaga efectiva del inicio de sesión es veinte y no cinco.
+    Resolverlo exige un contador compartido.
+  \item[Tokens sin revocación inmediata.] Un token robado es válido hasta que
+    caduca. Se mitiga con una vida de quince minutos; la solución completa es
+    una lista de revocación o sesiones en base de datos.
+  \item[El token del navegador vive en \codigo{sessionStorage}.] Se borra al
+    cerrar la pestaña, pero cualquier ataque de tipo \emph{cross-site
+    scripting} podría leerlo. La respuesta correcta en producción es una
+    cookie \codigo{httpOnly} con protección contra falsificación de petición
+    entre sitios.
+  \item[Una cuenta por usuario.] El modelo admite varias, pero el MVP impone
+    una por unicidad.
+  \item[Docker Compose no es un despliegue de producción.] No hay
+    orquestación, ni secretos gestionados, ni cifrado en reposo.
+  \item[Sin observabilidad continua.] Hay registro estructurado y correlación,
+    pero no métricas exportadas ni trazas distribuidas.
+\end{description}
+
+\subsection{De las mediciones}
+
+\begin{description}[leftmargin=0.6cm,style=nextline]
+  \item[Cliente y servidor en la misma máquina.] El generador de carga, los
+    cuatro workers y PostgreSQL compiten por los mismos dieciséis hilos de
+    CPU. Los números absolutos serían distintos con la carga generada desde
+    fuera; las comparaciones entre estrategias, que es para lo que se
+    hicieron, sí son válidas porque todas sufren la misma interferencia.
+  \item[Omisión coordinada.] Locust es un generador de bucle cerrado: cuando
+    el servidor se ralentiza deja de emitir peticiones, de modo que las
+    latencias altas quedan subrepresentadas. Las cifras de cola son por tanto
+    optimistas.
+  \item[Un minuto por carrera.] Suficiente para el régimen estacionario,
+    insuficiente para ver efectos lentos como el crecimiento de las tablas o
+    el comportamiento del recolector de versiones.
+  \item[Sin medición de recursos.] No se registró uso de CPU ni de memoria por
+    proceso. Queda como pendiente, no como dato estimado.
+  \item[Una sola repetición por combinación.] No hay intervalos de confianza.
+    Las diferencias que se discuten son lo bastante grandes como para no
+    depender del ruido, pero las pequeñas no deberían interpretarse.
+  \item[La carga ambiente varía entre carreras.] Una misma configuración
+    medida en dos momentos distintos dio 280,6 y 154,6 peticiones por segundo
+    en el escenario de lectura. Por eso las comparaciones del
+    apartado~\ref{subsec:optimizacion} se hicieron con las dos carreras
+    seguidas.
+  \item[No es una prueba de capacidad.] No se buscó el punto de saturación ni
+    la carga máxima sostenible.
+\end{description}
+
+\subsection{Del alcance}
+
+PayCore no implementa conciliación con entidades externas, ni reversiones
+contables, ni límites regulatorios, ni prevención de blanqueo, ni
+notificaciones, ni recuperación de contraseña, ni verificación de identidad.
+Nada de eso está a medias: directamente no existe, y decirlo es más útil que
+insinuar lo contrario.

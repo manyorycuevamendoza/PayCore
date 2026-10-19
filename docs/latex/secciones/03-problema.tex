@@ -1,0 +1,89 @@
+\section{Definición del problema}
+\label{sec:problema}
+
+\subsection{El riesgo central}
+
+El riesgo de una billetera digital es que el dinero deje de cuadrar. Hay dos
+formas de que ocurra:
+
+\begin{description}[leftmargin=2.6cm,style=nextline]
+  \item[Pérdida de dinero] Se debita al emisor y, por una falla, nunca se
+    acredita al receptor.
+  \item[Creación de dinero] Se acredita al receptor dos veces, o se acredita
+    sin debitar.
+\end{description}
+
+En un sistema real, cualquiera de las dos es un incidente contable. En un
+prototipo, es la diferencia entre un proyecto demostrable y una pantalla
+bonita sin nada detrás.
+
+\subsection{Los cuatro escenarios que hay que resolver}
+
+\paragraph{Fallo a mitad de la operación.} El proceso muere después de
+descontar el saldo del emisor y antes de acreditar al receptor. Si ambas
+escrituras no forman una unidad atómica, el dinero desaparece.
+
+\paragraph{Operaciones simultáneas.} Dos peticiones leen el mismo saldo antes
+de que ninguna escriba, ambas concluyen que hay fondos suficientes y ambas
+debitan. El resultado es un saldo negativo o dinero creado de la nada. Un
+ejemplo numérico aparece en el cuadro~\ref{tab:lostupdate}.
+
+\begin{table}[htbp]
+\centering
+\caption{Actualización perdida con cuentas ficticias. Ana tiene S/\,100 y
+recibe dos peticiones simultáneas de S/\,80.}
+\label{tab:lostupdate}
+\small
+\begin{tabular}{@{}clll@{}}
+\toprule
+$t$ & Petición 1 (a Luis) & Petición 2 (a Rosa) & Saldo en la base \\
+\midrule
+$t_0$ & lee saldo $=10\,000$ ctms & & $10\,000$ \\
+$t_1$ & & lee saldo $=10\,000$ ctms & $10\,000$ \\
+$t_2$ & valida $10\,000 \geq 8\,000$ & & $10\,000$ \\
+$t_3$ & & valida $10\,000 \geq 8\,000$ & $10\,000$ \\
+$t_4$ & escribe $2\,000$ & & $2\,000$ \\
+$t_5$ & & escribe $2\,000$ & $2\,000$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.4em}
+{\footnotesize Ana envió S/\,160 teniendo S/\,100 y su saldo final es S/\,20.
+Se crearon S/\,60 de la nada.}
+\end{table}
+
+\paragraph{Respuesta perdida.} El servidor confirma la transacción, pero la
+respuesta no llega al cliente por un corte de red. El cliente no sabe si el
+dinero se movió. Si reintenta y el servidor trata la petición como nueva, se
+paga dos veces. Ninguna propiedad transaccional resuelve esto, porque el
+problema ocurre fuera del límite de la transacción.
+
+\paragraph{Acceso a cuentas ajenas.} Si la cuenta de origen se toma del cuerpo
+de la petición, cualquiera puede transferir desde la cuenta de otro. Es el
+primer riesgo del OWASP API Security Top~10 de 2023~\cite{owaspapi2023}.
+
+\subsection{Un caso real}
+
+El 1 de agosto de 2012, Knight Capital perdió más de 400 millones de dólares
+en 45 minutos por un despliegue defectuoso. La orden administrativa de la
+Securities and Exchange Commission documenta que la firma no disponía de
+salvaguardas adecuadas para limitar los riesgos de su acceso al mercado ni
+revisaba la efectividad de sus controles, y se saldó con una sanción de 12
+millones de dólares~\cite{sec2013knight}.
+
+El aprendizaje transferible no es sobre bases de datos sino sobre controles:
+las invariantes deben ser verificables de forma independiente al código que
+las produce. Esa idea es la que justifica que PayCore incluya una prueba de
+reconciliación que recalcula los saldos desde el libro mayor y los compara con
+la proyección materializada.
+
+\subsection{Alcance}
+
+\textbf{Dentro:} registro y autenticación de usuarios ficticios, consulta de
+cuenta y saldo, transferencias entre cuentas, historial de movimientos,
+rechazo por fondos insuficientes, prevención de duplicados, procesamiento
+correcto de operaciones concurrentes e interfaz web.
+
+\textbf{Fuera, de forma explícita:} dinero real, conexión con entidades
+financieras o pasarelas de pago, retiros, recargas desde medios externos,
+múltiples divisas, intereses y comisiones.

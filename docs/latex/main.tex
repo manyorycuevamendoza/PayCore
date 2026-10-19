@@ -1,0 +1,181 @@
+%==============================================================================
+% PayCore. Diseño e implementación de un motor transaccional para una
+% billetera digital simulada.
+%
+% Compilar con:  latexmk -pdf main.tex
+%
+% Bibliografía: BibLaTeX con backend bibtex. Se usa bibtex y no biber porque
+% biber no está instalado en el entorno de desarrollo del proyecto. Si se
+% dispone de biber, basta cambiar backend=bibtex por backend=biber.
+%==============================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-noquoting,es-tabla]{babel}
+\usepackage{csquotes}
+\usepackage[a4paper,margin=2.6cm,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,calc,fit,backgrounds}
+\usepackage[backend=bibtex,style=numeric,sorting=none,maxbibnames=10]{biblatex}
+\usepackage[hidelinks,breaklinks]{hyperref}
+
+\addbibresource{references.bib}
+
+%------------------------------------------------------------------ colores --
+\definecolor{acento}{HTML}{0F6D63}
+\definecolor{grisclaro}{HTML}{F2F4F6}
+\definecolor{grisborde}{HTML}{C9D2D8}
+\definecolor{tinta}{HTML}{15232E}
+\definecolor{aviso}{HTML}{8A5A00}
+
+%---------------------------------------------------------------- tipografía --
+\titleformat{\section}{\Large\bfseries\color{acento}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{tinta}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.7em}
+
+\captionsetup{font=small,labelfont={bf,color=acento}}
+
+%-------------------------------------------------------------------- código --
+\lstdefinestyle{paycore}{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{acento}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{aviso},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{grisborde},
+  backgroundcolor=\color{grisclaro},
+  breaklines=true,
+  breakatwhitespace=true,
+  showstringspaces=false,
+  tabsize=2,
+  captionpos=b,
+  literate=
+    {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+    {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+    {ñ}{{\~n}}1 {Ñ}{{\~N}}1 {¿}{{?`}}1 {¡}{{!`}}1
+}
+\lstset{style=paycore}
+
+%----------------------------------------------------------------- cabeceras --
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{acento}PayCore}
+\fancyhead[R]{\small\color{gray}Motor transaccional para una billetera simulada}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%-------------------------------------------------------------------- atajos --
+\newcommand{\codigo}[1]{\texttt{\small #1}}
+\newcommand{\sqlstate}[1]{\texttt{\small #1}}
+
+% Aviso destacado
+\newcommand{\avisoprototipo}{%
+  \begin{center}
+  \fcolorbox{aviso}{yellow!8}{%
+    \parbox{0.92\textwidth}{\small\color{aviso}%
+      \textbf{Prototipo educativo.} PayCore utiliza exclusivamente saldo
+      \textbf{simulado} en soles peruanos (PEN). No está conectado a Yape, a
+      Credicorp, a ninguna entidad bancaria ni a ninguna pasarela de pago, no
+      mueve dinero real y no emplea marcas, logotipos ni identidades visuales
+      de terceros.}}
+  \end{center}
+}
+
+% Marca de estado para distinguir diseño, implementación y verificación.
+\newcommand{\estado}[1]{\textcolor{acento}{\small\textsf{[#1]}}}
+
+\begin{document}
+
+%================================================================== portada ==
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+
+{\Huge\bfseries\color{acento} PayCore\par}
+\vspace{0.8cm}
+{\LARGE Diseño e implementación de un motor transaccional\\[0.3em]
+para una billetera digital simulada\par}
+
+\vspace{2cm}
+{\large\textbf{Manyory Estefany Cueva Mendoza}\par}
+\vspace{0.4cm}
+{\large Proyecto de portafolio en Ciencia de la Computación\par}
+
+\vspace{1.5cm}
+\avisoprototipo
+
+\vfill
+{\large 19 de octubre de 2026\par}
+\vspace{0.5cm}
+{\small Código fuente:
+\url{https://github.com/manyorycuevamendoza/PayCore}\par}
+\end{titlepage}
+
+%=================================================================== índice ==
+\tableofcontents
+\clearpage
+
+\section*{Nota sobre el estado de lo descrito}
+\addcontentsline{toc}{section}{Nota sobre el estado de lo descrito}
+
+Este informe distingue de forma explícita tres cosas distintas, porque
+confundirlas sería el error más fácil de cometer en un documento así:
+
+\begin{description}[leftmargin=2.4cm,style=nextline]
+  \item[\estado{diseño}] Decisión tomada y argumentada, sin que exista
+    necesariamente código que la implemente todavía.
+  \item[\estado{implementado}] Existe el código en el repositorio y funciona.
+  \item[\estado{verificado}] Existe una prueba automatizada o una medición
+    reproducible que lo comprueba, y su evidencia está versionada.
+\end{description}
+
+Cuando un resultado no se ha medido, se dice que no se ha medido. No hay en
+este documento ninguna cifra, porcentaje, cita ni referencia bibliográfica
+inventada. Todas las fuentes se consultaron en su origen el 18 de octubre de
+2026, y todos los números de rendimiento proceden de ficheros CSV versionados
+en el repositorio.
+
+\clearpage
+
+\input{secciones/01-resumen}
+\input{secciones/02-introduccion}
+\input{secciones/03-problema}
+\input{secciones/04-objetivos}
+\input{secciones/05-fundamentos}
+\input{secciones/06-investigacion}
+\input{secciones/07-tecnologias}
+\input{secciones/08-arquitectura}
+\input{secciones/09-base-de-datos}
+\input{secciones/10-api}
+\input{secciones/11-transacciones}
+\input{secciones/12-idempotencia}
+\input{secciones/13-seguridad}
+\input{secciones/14-pruebas}
+\input{secciones/15-rendimiento}
+\input{secciones/16-resultados}
+\input{secciones/17-limitaciones}
+\input{secciones/18-trabajo-futuro}
+\input{secciones/19-conclusiones}
+
+\clearpage
+\printbibliography[title={Referencias bibliográficas},heading=bibnumbered]
+
+\end{document}

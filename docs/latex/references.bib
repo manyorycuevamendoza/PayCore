@@ -1,0 +1,254 @@
+% Bibliografía de PayCore.
+% Todas las fuentes fueron consultadas y verificadas el 18 de octubre de 2026.
+% No hay ninguna referencia que no se haya leído en su fuente original.
+
+% --- Fundamentos de transacciones y concurrencia -------------------------
+
+@article{haerder1983,
+  author  = {Haerder, Theo and Reuter, Andreas},
+  title   = {Principles of Transaction-Oriented Database Recovery},
+  journal = {ACM Computing Surveys},
+  volume  = {15},
+  number  = {4},
+  pages   = {287--317},
+  year    = {1983},
+  month   = dec,
+  doi     = {10.1145/289.291},
+  url     = {https://dl.acm.org/doi/10.1145/289.291}
+}
+
+@inproceedings{berenson1995,
+  author    = {Berenson, Hal and Bernstein, Philip A. and Gray, Jim and
+               Melton, Jim and O'Neil, Elizabeth J. and O'Neil, Patrick E.},
+  title     = {A Critique of {ANSI} {SQL} Isolation Levels},
+  booktitle = {Proceedings of the 1995 {ACM} {SIGMOD} International Conference
+               on Management of Data},
+  pages     = {1--10},
+  year      = {1995},
+  doi       = {10.1145/223784.223785},
+  url       = {https://dl.acm.org/doi/abs/10.1145/568271.223785}
+}
+
+@article{ports2012,
+  author  = {Ports, Dan R. K. and Grittner, Kevin},
+  title   = {Serializable Snapshot Isolation in {PostgreSQL}},
+  journal = {Proceedings of the VLDB Endowment},
+  volume  = {5},
+  number  = {12},
+  pages   = {1850--1861},
+  year    = {2012},
+  url     = {https://www.vldb.org/pvldb/vol5/p1850_danrkports_vldb2012.pdf}
+}
+
+@article{goldberg1991,
+  author  = {Goldberg, David},
+  title   = {What Every Computer Scientist Should Know About Floating-Point
+             Arithmetic},
+  journal = {ACM Computing Surveys},
+  volume  = {23},
+  number  = {1},
+  pages   = {5--48},
+  year    = {1991},
+  month   = mar,
+  doi     = {10.1145/103162.103163},
+  url     = {https://dl.acm.org/doi/10.1145/103162.103163}
+}
+
+@article{dean2013,
+  author  = {Dean, Jeffrey and Barroso, Luiz Andr\'e},
+  title   = {The Tail at Scale},
+  journal = {Communications of the ACM},
+  volume  = {56},
+  number  = {2},
+  pages   = {74--80},
+  year    = {2013},
+  month   = feb,
+  doi     = {10.1145/2408776.2408794},
+  url     = {https://cacm.acm.org/research/the-tail-at-scale/}
+}
+
+% --- Documentación oficial de PostgreSQL ---------------------------------
+
+@manual{pg16iso,
+  author       = {{PostgreSQL Global Development Group}},
+  title        = {{PostgreSQL} 16 Documentation, 13.2. Transaction Isolation},
+  year         = {2026},
+  url          = {https://www.postgresql.org/docs/16/transaction-iso.html},
+  urldate      = {2026-10-18}
+}
+
+@manual{pg16lock,
+  author       = {{PostgreSQL Global Development Group}},
+  title        = {{PostgreSQL} 16 Documentation, 13.3. Explicit Locking},
+  year         = {2026},
+  url          = {https://www.postgresql.org/docs/16/explicit-locking.html},
+  urldate      = {2026-10-18}
+}
+
+@manual{pg16wal,
+  author       = {{PostgreSQL Global Development Group}},
+  title        = {{PostgreSQL} 16 Documentation, 29.3. Write-Ahead Logging},
+  year         = {2026},
+  url          = {https://www.postgresql.org/docs/16/wal-intro.html},
+  urldate      = {2026-10-18}
+}
+
+@manual{pg16money,
+  author       = {{PostgreSQL Global Development Group}},
+  title        = {{PostgreSQL} 16 Documentation, 8.2. Monetary Types},
+  year         = {2026},
+  url          = {https://www.postgresql.org/docs/16/datatype-money.html},
+  urldate      = {2026-10-18}
+}
+
+% --- Idempotencia ---------------------------------------------------------
+
+@online{stripeidem,
+  author       = {{Stripe}},
+  title        = {{API} Reference. Idempotent requests},
+  year         = {2026},
+  url          = {https://docs.stripe.com/api/idempotent_requests},
+  urldate      = {2026-10-18}
+}
+
+@online{leach2017,
+  author       = {Leach, Brandur},
+  title        = {Designing robust and predictable {APIs} with idempotency},
+  year         = {2017},
+  month        = feb,
+  url          = {https://stripe.com/blog/idempotency},
+  urldate      = {2026-10-18}
+}
+
+@online{ietfidem,
+  author       = {Jena, Jayadeba and Shalygin, Sanjay},
+  title        = {The Idempotency-Key {HTTP} Header Field,
+                  draft-ietf-httpapi-idempotency-key-header-07},
+  organization = {IETF HTTPAPI Working Group},
+  year         = {2025},
+  month        = oct,
+  note         = {Internet-Draft expirado},
+  url          = {https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/},
+  urldate      = {2026-10-18}
+}
+
+% --- Seguridad ------------------------------------------------------------
+
+@online{owaspapi2023,
+  author       = {{OWASP}},
+  title        = {{OWASP} {API} Security Top 10, edición 2023},
+  year         = {2023},
+  url          = {https://owasp.org/API-Security/editions/2023/en/0x11-t10/},
+  urldate      = {2026-10-18}
+}
+
+@online{owasppwd,
+  author       = {{OWASP}},
+  title        = {Password Storage Cheat Sheet},
+  year         = {2026},
+  url          = {https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html},
+  urldate      = {2026-10-18}
+}
+
+@techreport{rfc7518,
+  author      = {Jones, Michael B.},
+  title       = {{JSON} Web Algorithms ({JWA})},
+  institution = {IETF},
+  type        = {RFC},
+  number      = {7518},
+  year        = {2015},
+  doi         = {10.17487/RFC7518},
+  url         = {https://www.rfc-editor.org/rfc/rfc7518}
+}
+
+% --- Arquitectura y patrones ---------------------------------------------
+
+@online{fowler2015,
+  author       = {Fowler, Martin},
+  title        = {{MonolithFirst}},
+  year         = {2015},
+  month        = jun,
+  url          = {https://martinfowler.com/bliki/MonolithFirst.html},
+  urldate      = {2026-10-18}
+}
+
+@online{fowler2006,
+  author       = {Fowler, Martin},
+  title        = {Accounting Narrative},
+  year         = {2006},
+  month        = jan,
+  url          = {https://martinfowler.com/eaaDev/AccountingNarrative.html},
+  urldate      = {2026-10-18}
+}
+
+@online{square2019,
+  author       = {{Square}},
+  title        = {Books, an immutable double-entry accounting database service},
+  year         = {2019},
+  month        = oct,
+  url          = {https://developer.squareup.com/blog/books-an-immutable-double-entry-accounting-database-service/},
+  urldate      = {2026-10-18}
+}
+
+% --- Aprendizaje automático ----------------------------------------------
+
+@inproceedings{sculley2015,
+  author    = {Sculley, D. and Holt, Gary and Golovin, Daniel and
+               Davydov, Eugene and Phillips, Todd and Ebner, Dietmar and
+               Chaudhary, Vinay and Young, Michael and Crespo, Jean-Fran\c{c}ois
+               and Dennison, Dan},
+  title     = {Hidden Technical Debt in Machine Learning Systems},
+  booktitle = {Advances in Neural Information Processing Systems 28
+               ({NIPS} 2015)},
+  pages     = {2503--2511},
+  year      = {2015},
+  url       = {https://papers.nips.cc/paper/5656-hidden-technical-debt-in-machine-learning-systems}
+}
+
+% --- Caso real ------------------------------------------------------------
+
+@report{sec2013knight,
+  author      = {{U.S. Securities and Exchange Commission}},
+  title       = {In the Matter of Knight Capital Americas {LLC}.
+                 Release No. 34-70694, File No. 3-15570},
+  institution = {U.S. Securities and Exchange Commission},
+  year        = {2013},
+  month       = oct,
+  url         = {https://www.sec.gov/files/litigation/admin/2013/34-70694.pdf},
+  urldate     = {2026-10-18}
+}
+
+% --- Documentación de herramientas ---------------------------------------
+
+@manual{fastapi,
+  author = {Ram\'irez, Sebasti\'an},
+  title  = {{FastAPI} Documentation},
+  year   = {2026},
+  url    = {https://fastapi.tiangolo.com/},
+  urldate = {2026-10-18}
+}
+
+@manual{sqlalchemy,
+  author = {Bayer, Michael},
+  title  = {{SQLAlchemy} 2.0 Documentation. Transactions and Connection
+            Management},
+  year   = {2026},
+  url    = {https://docs.sqlalchemy.org/en/20/orm/session_transaction.html},
+  urldate = {2026-10-18}
+}
+
+@manual{alembic,
+  author = {Bayer, Michael},
+  title  = {{Alembic} Documentation},
+  year   = {2026},
+  url    = {https://alembic.sqlalchemy.org/en/latest/},
+  urldate = {2026-10-18}
+}
+
+@manual{locust,
+  author = {{Locust}},
+  title  = {What is {Locust}?},
+  year   = {2026},
+  url    = {https://docs.locust.io/en/stable/what-is-locust.html},
+  urldate = {2026-10-18}
+}

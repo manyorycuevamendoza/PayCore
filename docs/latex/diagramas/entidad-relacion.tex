@@ -1,0 +1,78 @@
+% Modelo entidad-relación de PayCore (simplificado a lo esencial).
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Stealth[length=2mm]},
+  entidad/.style={draw=acento!55, fill=acento!7, rounded corners=3pt,
+                  text width=40mm, inner sep=5pt},
+  titulo/.style={font=\scriptsize\bfseries, color=acento},
+  rel/.style={->, draw=tinta!55},
+  nota/.style={font=\scriptsize\itshape, color=tinta!65},
+]
+
+\node[entidad] (users) {%
+  \textcolor{acento}{\bfseries users}\\[2pt]
+  \codigo{id} \textsc{uuid pk}\\
+  \codigo{email} \textsc{citext uk}\\
+  \codigo{password\_hash}\\
+  \codigo{full\_name}\\
+  \codigo{created\_at}};
+
+\node[entidad, right=26mm of users] (accounts) {%
+  \textcolor{acento}{\bfseries accounts}\\[2pt]
+  \codigo{id} \textsc{uuid pk}\\
+  \codigo{user\_id} \textsc{fk uk}\\
+  \codigo{alias} \textsc{uk}\\
+  \codigo{kind} user\,|\,system\\
+  \codigo{currency} = PEN\\
+  \codigo{balance\_cents} \textsc{bigint}\\
+  \codigo{created\_at}};
+
+\node[entidad, below=14mm of users] (idem) {%
+  \textcolor{acento}{\bfseries idempotency\_keys}\\[2pt]
+  \codigo{id} \textsc{uuid pk}\\
+  \codigo{user\_id} \textsc{fk}\\
+  \codigo{key}\\
+  \codigo{request\_fingerprint}\\
+  \codigo{state}\\
+  \codigo{response\_status}\\
+  \codigo{response\_body} \textsc{jsonb}\\
+  \codigo{transfer\_id} \textsc{fk}\\
+  \codigo{expires\_at}};
+
+\node[entidad, below=14mm of accounts] (transfers) {%
+  \textcolor{acento}{\bfseries transfers}\\[2pt]
+  \codigo{id} \textsc{uuid pk}\\
+  \codigo{source\_account\_id} \textsc{fk}\\
+  \codigo{destination\_account\_id} \textsc{fk}\\
+  \codigo{amount\_cents} \textsc{bigint}\\
+  \codigo{status}\\
+  \codigo{rejection\_reason}\\
+  \codigo{concept}\\
+  \codigo{completed\_at}};
+
+\node[entidad, right=22mm of transfers] (ledger) {%
+  \textcolor{acento}{\bfseries ledger\_entries}\\[2pt]
+  \codigo{id} \textsc{uuid pk}\\
+  \codigo{transfer\_id} \textsc{fk}\\
+  \codigo{account\_id} \textsc{fk}\\
+  \codigo{amount\_cents} \textsc{bigint}\\
+  \hspace{4pt}{\itshape signo: $-$ débito, $+$ crédito}\\
+  \codigo{balance\_after\_cents}\\
+  \codigo{created\_at}};
+
+\draw[rel] (users.east) -- node[above] {1\,:\,1} (accounts.west);
+\draw[rel] (users.south) -- node[right] {1\,:\,N} (idem.north);
+\draw[rel] (accounts.south) -- node[right] {1\,:\,N} (transfers.north);
+\draw[rel] (transfers.east) -- node[above, align=center]
+  {1\,:\,2\\[-2pt]{\itshape exactamente}} (ledger.west);
+\draw[rel] (idem.east) -- node[above] {0\,:\,1} (transfers.west);
+
+\node[nota, below=5mm of transfers.south, text width=140mm,
+      align=left, anchor=north] {%
+  El libro mayor (\codigo{ledger\_entries}) es de solo inserción y es la
+  fuente de verdad. La columna \codigo{accounts.balance\_cents} es una
+  proyección materializada que se escribe en la misma transacción. La
+  restricción de no negatividad exime a las cuentas de sistema, que son el
+  origen auditado del saldo ficticio.};
+
+\end{tikzpicture}

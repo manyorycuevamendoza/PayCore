@@ -1,0 +1,66 @@
+\section{Objetivos}
+
+\subsection{Objetivo general}
+
+Diseñar, implementar y verificar un motor transaccional para una billetera
+digital con saldo simulado que garantice la integridad del dinero bajo fallos
+y concurrencia, y cuyas garantías sean comprobables mediante pruebas
+automatizadas y mediciones reproducibles.
+
+\subsection{Objetivos específicos}
+
+\begin{enumerate}[leftmargin=1.6em,label=\textbf{O\arabic*.}]
+  \item Garantizar que una transferencia es atómica: o se debita y se acredita
+    el mismo importe, o no ocurre nada.
+  \item Impedir que el saldo de un usuario quede negativo, con una garantía
+    aplicada por el motor de base de datos y no solo por el código de
+    aplicación.
+  \item Resolver correctamente las operaciones concurrentes sobre una misma
+    cuenta, sin depender de mecanismos de sincronización locales al proceso.
+  \item Impedir que un reintento del cliente duplique una transferencia,
+    incluso cuando la respuesta original se perdió después de confirmarse la
+    transacción.
+  \item Impedir que un usuario consulte u opere sobre cuentas que no le
+    pertenecen.
+  \item Conservar un rastro de auditoría completo que permita recalcular
+    cualquier saldo de forma independiente al código que lo produjo.
+  \item Medir el rendimiento del sistema con datos reales y comparar
+    estrategias de control de concurrencia bajo cargas equivalentes.
+  \item Documentar cada decisión técnica con su alternativa descartada y su
+    fundamento, de modo que el proyecto sea defendible en una entrevista.
+\end{enumerate}
+
+\subsection{Criterios de aceptación}
+
+Cada objetivo tiene asociada al menos una comprobación automatizada. El
+cuadro~\ref{tab:objetivos} los enlaza con las pruebas que los verifican,
+descritas en la sección~\ref{sec:pruebas}.
+
+\begin{table}[htbp]
+\centering
+\caption{Objetivos y su verificación.}
+\label{tab:objetivos}
+\small
+\begin{tabularx}{\textwidth}{@{}lXl@{}}
+\toprule
+\textbf{Obj.} & \textbf{Cómo se comprueba} & \textbf{Estado} \\
+\midrule
+O1 & Prueba E: fallo inyectado antes del \codigo{COMMIT}; cero asientos y
+     saldos intactos & \estado{verificado} \\
+O2 & Restricción \codigo{CHECK} atacada por SQL directo, sin pasar por la
+     aplicación & \estado{verificado} \\
+O3 & Prueba D: cien peticiones concurrentes con conexiones reales &
+     \estado{verificado} \\
+O4 & Prueba C y prueba E: reintento con la misma clave de idempotencia &
+     \estado{verificado} \\
+O5 & Prueba F: 19 comprobaciones ordenadas por riesgo de OWASP &
+     \estado{verificado} \\
+O6 & Reconciliación que recalcula desde el libro mayor tras cada suite y
+     cada carrera de carga & \estado{verificado} \\
+O7 & Cinco carreras con Locust, con CSV versionados &
+     \estado{verificado} \\
+O8 & Nueve registros de decisión arquitectónica en el repositorio &
+     \estado{implementado} \\
+\bottomrule
+\end{tabularx}
+\end{table}

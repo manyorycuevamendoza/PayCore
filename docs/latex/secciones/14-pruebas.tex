@@ -1,0 +1,159 @@
+\section{Pruebas funcionales y de integración}
+\label{sec:pruebas}
+
+\subsection{Principio rector}
+
+\textbf{Las aserciones sobre dinero consultan PostgreSQL, no las respuestas
+HTTP.} Un servicio que devolviera \codigo{201 Created} a todo sin escribir
+nada pasaría cualquier prueba que solo mire códigos de estado.
+
+Por la misma razón, las pruebas corren contra un PostgreSQL real y no contra
+SQLite: lo que se verifica son garantías del motor (restricciones, triggers,
+bloqueos y niveles de aislamiento) que otro motor no reproduce.
+
+\subsection{Distribución}
+
+\begin{table}[htbp]
+\centering
+\caption{Las 96 pruebas automatizadas del proyecto.}
+\label{tab:pruebas}
+\small
+\begin{tabularx}{\textwidth}{@{}lrX@{}}
+\toprule
+\textbf{Fichero} & \textbf{N.º} & \textbf{Qué verifica} \\
+\midrule
+\codigo{test\_seguridad.py} & 19 &
+  Prueba F, ordenada por riesgo de OWASP \\
+\codigo{test\_invariantes\_esquema.py} & 17 &
+  Ataca cada invariante por SQL directo, sin pasar por la aplicación \\
+\codigo{test\_identidad.py} & 13 &
+  Registro, autenticación, hashing y tokens \\
+\codigo{test\_idempotencia.py} & 10 &
+  Prueba C y el resto del protocolo, con un caso concurrente \\
+\codigo{test\_transferencias.py} & 10 &
+  Pruebas A y B, historial y conservación del saldo total \\
+\codigo{test\_rate\_limit.py} & 10 &
+  Cubo de fichas como unidad y aplicado a los endpoints \\
+\codigo{test\_concurrencia.py} & 5 &
+  Prueba D con las dos estrategias y ausencia de deadlocks \\
+\codigo{test\_fallos.py} & 5 &
+  Prueba E, con los tres fallos provocados de verdad \\
+\codigo{test\_salud\_api.py} & 5 &
+  Arranque, correlación y formato uniforme de error \\
+\codigo{test\_migraciones.py} & 2 &
+  Reversibilidad y ausencia de deriva entre modelos y esquema \\
+\midrule
+\textbf{Total} & \textbf{96} & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Las seis pruebas exigidas}
+
+\paragraph{A. Transferencia correcta.} Ana tiene S/\,100 y Luis S/\,20; Ana
+envía S/\,30. Se comprueba en la base que Ana queda con 7\,000 céntimos, Luis
+con 5\,000 y que existen exactamente dos asientos, $(-3000, +3000)$, ligados
+por el mismo \codigo{transfer\_id}. Se verificó además con \codigo{curl}
+contra el sistema levantado con Docker. \estado{verificado}
+
+\paragraph{B. Fondos insuficientes.} Ana intenta enviar S/\,200 teniendo
+S/\,100. La respuesta es 422, los saldos quedan \emph{idénticos} al céntimo y
+la transferencia se registra con estado \codigo{rejected} y \textbf{cero
+asientos}. Persistir el rechazo sin generar movimiento es intencionado: queda
+en el historial sin tocar el dinero. \estado{verificado}
+
+\paragraph{C. Solicitud duplicada.} Dos envíos con la misma clave de
+idempotencia. La segunda respuesta es idéntica a la primera y lleva la
+cabecera \codigo{Idempotent-Replay: true}; en el libro mayor hay un único par
+de asientos nuevos. Se comprueba también que un rechazo por fondos es
+igualmente idempotente y que el orden de los campos del JSON no altera la
+huella. \estado{verificado}
+
+\paragraph{D. Cien solicitudes concurrentes.} Detallada en la
+sección~\ref{subsec:pruebaD}.
+
+\paragraph{E. Fallos.} Detallada en la sección~\ref{subsec:pruebaE}.
+
+\paragraph{F. Seguridad.} Diecinueve comprobaciones: operar sobre cuentas
+ajenas, consultar operaciones ajenas, importes inválidos (cero, negativos,
+decimales, fuera de rango, texto), campos extra, intentos de inyección SQL en
+el alias de destino, y ausencia de traza interna en cualquier respuesta de
+error. \estado{verificado}
+
+\subsection{Prueba D, cien solicitudes concurrentes}
+\label{subsec:pruebaD}
+
+Una cuenta con S/\,100. Cien hilos, cada uno con su propia conexión, intentan
+transferir S/\,30 a la vez desde una barrera común. El máximo posible de
+aprobaciones es tres.
+
+\begin{table}[htbp]
+\centering
+\caption{Prueba D en la suite automatizada. Tres ejecuciones consecutivas.}
+\label{tab:pruebaD}
+\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Ejec.} & \textbf{Estrategia} & \textbf{Aprobadas} &
+\textbf{Rechazadas} & \textbf{Reint. agotados} & \textbf{Saldo final} \\
+\midrule
+1 & \codigo{pessimistic}   & 3 & 97 & 0 & 1\,000 ctms \\
+1 & \codigo{serializable}  & 3 & 94 & 3 & 1\,000 ctms \\
+2 & \codigo{pessimistic}   & 3 & 97 & 0 & 1\,000 ctms \\
+2 & \codigo{serializable}  & 3 & 92 & 5 & 1\,000 ctms \\
+3 & \codigo{pessimistic}   & 3 & 97 & 0 & 1\,000 ctms \\
+3 & \codigo{serializable}  & 3 & 93 & 4 & 1\,000 ctms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En las seis ejecuciones se aprueban exactamente tres transferencias, el saldo
+final es 1\,000 céntimos, ningún saldo queda negativo y la reconciliación
+cuadra. Las dos estrategias son correctas; se diferencian en que
+\codigo{SERIALIZABLE} devuelve un 503 a entre el 3 y el 5\,\% de las
+peticiones, que no es una respuesta sobre su dinero sino sobre el estado del
+sistema.
+
+Esta prueba es la que destapó la actualización perdida descrita en la
+sección~\ref{subsec:lostupdate}.
+
+\subsection{Prueba E, fallos}
+\label{subsec:pruebaE}
+
+Los tres fallos se provocan de verdad, no se simulan con comentarios.
+
+\paragraph{Antes del \codigo{COMMIT}.} Se inyecta una excepción después de
+mover los saldos y antes de confirmar. Resultado verificado en la base:
+saldos idénticos, cero asientos nuevos y \textbf{ninguna} clave de
+idempotencia registrada. Como la clave tampoco se persistió, el reintento del
+cliente se procesa como una petición nueva y la transferencia se ejecuta una
+sola vez.
+
+\paragraph{Después del \codigo{COMMIT}, antes de responder.} Se rompe la
+construcción de la respuesta una vez confirmada la transacción. El dinero
+\emph{sí} se movió, el cliente recibe un 500 y no sabe si pagó. Al reintentar
+con la misma clave recibe 201 con \codigo{Idempotent-Replay: true} y el estado
+de la base no cambia ni un céntimo. Es exactamente el escenario para el que
+existe el diseño de la sección~\ref{sec:idempotencia}.
+
+Hay una contraprueba: dos peticiones idénticas con claves \emph{distintas} sí
+mueven el dinero dos veces. Deja claro que lo que evita el duplicado es la
+clave y no ninguna otra propiedad del sistema.
+
+\paragraph{Caída del proceso de base de datos.} No se simula. Se obtiene el
+identificador del proceso servidor de la transacción en curso y se mata desde
+otra conexión con \codigo{pg\_terminate\_backend}, con los asientos ya
+escritos y sin confirmar. Es lo más parecido a un corte de luz que se puede
+provocar de forma reproducible. El \codigo{COMMIT} falla, el estado de la base
+queda idéntico al previo y la reconciliación sigue cuadrando. Una segunda
+prueba comprueba que el servicio queda operativo: la verificación previa del
+pool descarta la conexión muerta y la siguiente transferencia se completa con
+normalidad. \estado{verificado}
+
+\subsection{Integración continua}
+
+El flujo de trabajo levanta PostgreSQL como servicio del runner, por lo que
+las pruebas de integración y concurrencia se ejecutan de verdad en CI y no
+solo las unitarias. Un segundo trabajo comprueba los tipos y la compilación
+del frontend. El CI \textbf{no} se usa para medir rendimiento: los runners
+compartidos no son un entorno fiable para eso.

@@ -7,16 +7,16 @@ Estado al 18 de octubre de 2026.
 | Fase | Entregable | Estado |
 |---|---|---|
 | 1. Investigación | [docs/research.md](research.md) | **Completada** |
-| 2. Justificación del stack | [docs/stack.md](stack.md), 8 ADRs en [docs/decisions/](decisions/) | **Completada** |
-| 3. Diseño funcional | [docs/architecture.md](architecture.md) | **Completada** (diseño propuesto, sin código) |
+| 2. Justificación del stack | [docs/stack.md](stack.md), 9 ADRs en [docs/decisions/](decisions/) | **Completada** |
+| 3. Diseño funcional | [docs/architecture.md](architecture.md) | **Completada** |
 | 4. Backend | API FastAPI, migraciones, invariantes | **Completada** (H1 a H9) |
 | 5. Interfaz web | React + Vite | **Completada** |
-| 6. Pruebas A-F | Suite pytest | **Completada**: A, B, C, D, E y F hechas y verificadas. 86 pruebas |
+| 6. Pruebas A-F | Suite pytest | **Completada**: A, B, C, D, E y F hechas y verificadas. 96 pruebas |
 | 7. Rendimiento | Locust, CSV y gráficos reales | **Completada** |
-| 8. Informe LaTeX | `docs/latex/main.tex` + PDF | Pendiente |
-| 9. README | `README.md` con capturas reales | Pendiente |
-| 10. Preparación de entrevista | `docs/interview-preparation.md` | Pendiente |
-| 11. Organización y entrega | CI, `.env.example`, scripts, evidencia | Pendiente |
+| 8. Informe LaTeX | `docs/latex/main.tex` + PDF | **Completada** (36 páginas) |
+| 9. README | `README.md` con capturas reales | **Completada** |
+| 10. Preparación de entrevista | `docs/interview-preparation.md` | **Completada** |
+| 11. Organización y entrega | CI, `.env.example`, scripts, evidencia | **Completada** |
 
 ## Hitos de implementación
 
@@ -77,9 +77,10 @@ Escenarios Locust, ejecución de las dos estrategias de concurrencia bajo carga 
 **Hallazgo adicional:** la carga destapó un fallo de configuración real. La sesión de base de datos se obtenía como dependencia de FastAPI, lo que retenía la conexión fuera del hilo que la usaba y agotaba el pool. Acotarla al cuerpo del endpoint multiplicó por 7,4 el rendimiento de lectura y bajó la cola de 30 s a 1,1 s, con medición pareada antes y después.
 **Medición descartada:** la primera comparación antes/después no era válida porque la carrera del «antes» se cortó a los 34 s (el `locustfile` abortaba la ejecución al fallar un login). Se detectó al revisar las marcas de tiempo, se corrigió el generador y se repitió. Queda documentado en la sección 5.4 del informe.
 
-### H12. Documentación e informe
+### H12. Documentación e informe — **completado**
 Informe LaTeX compilable, README, preparación de entrevista, workflow de CI con PostgreSQL como servicio, `.env.example`, script de inicialización, datos ficticios e instrucciones de limpieza.
 **Criterio:** `latexmk -pdf` produce el PDF sin errores y el CI está en verde.
+**Verificado:** `./docs/latex/build.sh` compila 36 páginas sin errores, sin referencias indefinidas y sin cajas desbordadas. Tres diagramas en TikZ (componentes, entidad-relación y secuencia de la transferencia) y tres gráficos generados desde los CSV reales. Bibliografía con BibLaTeX y 24 entradas verificadas en su fuente. Se usa el backend `bibtex` y no `biber` porque `biber` no está instalado en este entorno; queda anotado en la cabecera de `main.tex`.
 
 ## Riesgos abiertos y decisiones pendientes
 

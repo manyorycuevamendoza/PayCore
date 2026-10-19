@@ -1,0 +1,13 @@
+# Productos intermedios de LaTeX. El PDF final se versiona en docs/.
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.run.xml
+*.bcf
+main.pdf
+main-blx.bib

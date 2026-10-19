@@ -6,9 +6,22 @@ Motor transaccional para una billetera digital simulada, construido para demostr
 
 **Autora:** Manyory Estefany Cueva Mendoza
 
+## Qué resuelve
+
+Restar de una cuenta y sumar a otra es fácil. Lo difícil es qué pasa cuando eso sale mal. PayCore ataca cuatro escenarios concretos y los verifica con pruebas:
+
+| Escenario | Cómo se resuelve |
+|---|---|
+| El proceso muere a mitad de la operación | Una transferencia es **una sola transacción**: los dos asientos y los dos saldos se confirman juntos o no se confirma ninguno |
+| Dos peticiones llegan a la vez | `SELECT FOR UPDATE` sobre las dos cuentas en **orden ascendente de identificador**, lo que además hace imposible el deadlock |
+| La respuesta se pierde y el cliente reintenta | La clave de idempotencia se escribe en la **misma transacción** que el dinero, así que no hay ningún instante en el que el saldo haya cambiado y la clave no esté registrada |
+| Alguien intenta operar sobre una cuenta ajena | La cuenta de origen sale siempre del token, nunca del cuerpo de la petición; los recursos ajenos devuelven 404 y no 403 |
+
+Nueve de las diez invariantes del sistema se aplican en PostgreSQL y no en Python. Hay 17 pruebas que las atacan con SQL directo, sin pasar por la aplicación.
+
 ## Estado actual
 
-El proyecto está en construcción. **Backend, interfaz web y mediciones de rendimiento terminados** (hitos H1 a H11) con **96 pruebas en verde**. Falta el informe técnico en LaTeX y la preparación de entrevista.
+**Completo.** Backend, interfaz web, mediciones de rendimiento e informe técnico. **96 pruebas en verde.**
 
 Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, control de concurrencia con dos estrategias comparables, idempotencia persistente, historial de movimientos y limitación de peticiones.
 
@@ -23,7 +36,11 @@ Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y
 | E | Fallos antes y después del commit, y caída del proceso de base de datos | Atomicidad e idempotencia verificadas |
 | F | Operar sobre cuentas ajenas e importes inválidos | 19 pruebas por riesgo del OWASP API Top 10 2023 |
 
-Falta el informe técnico en LaTeX.
+## Informe técnico
+
+[**PayCore_Technical_Report.pdf**](docs/PayCore_Technical_Report.pdf) — 36 páginas con el diseño completo, la investigación previa, los diagramas, los resultados medidos y las limitaciones reconocidas. Se compila con `./docs/latex/build.sh`.
+
+También: [preparación para la entrevista técnica](docs/interview-preparation.md), con las preguntas que este proyecto permite responder y las que conviene tener preparadas.
 
 ## Resultados medidos
 
@@ -113,7 +130,7 @@ React 19 con Vite y TypeScript en modo estricto, sin librería de componentes ni
 
 Un detalle que importa: el importe se escribe en soles y se convierte a céntimos **sin `parseFloat`**. `parseFloat("30.10") * 100` da `3009.9999999999995`, y redondear funciona casi siempre, que en dinero no basta. El cliente separa la cadena por el punto decimal y opera con enteros, igual que el backend.
 
-Este README se reescribirá en la Fase 9 con funcionalidades implementadas, capturas reales, comandos verificados y resultados medidos. Mientras tanto, la documentación útil es:
+## Documentación
 
 | Documento | Contenido |
 |---|---|
@@ -122,7 +139,10 @@ Este README se reescribirá en la Fase 9 con funcionalidades implementadas, capt
 | [docs/architecture.md](docs/architecture.md) | Diseño funcional, modelo de datos, invariantes, diagramas y contrato de la API |
 | [docs/decisions/](docs/decisions/) | Ocho ADR con las decisiones y sus alternativas descartadas |
 | [docs/plan.md](docs/plan.md) | Plan de construcción con criterios de aceptación por hito |
+| [docs/performance.md](docs/performance.md) | Metodología y resultados de las pruebas de carga |
+| [docs/interview-preparation.md](docs/interview-preparation.md) | Preguntas y respuestas para defender el proyecto |
 | [docs/evidence/](docs/evidence/) | Evidencia de ejecución real de las pruebas |
+| [docs/PayCore_Technical_Report.pdf](docs/PayCore_Technical_Report.pdf) | Informe técnico completo (36 páginas) |
 
 ## Licencia
 

@@ -1,0 +1,64 @@
+% Vista de componentes de PayCore.
+\begin{tikzpicture}[
+  font=\small,
+  >={Stealth[length=2.2mm]},
+  caja/.style={draw=grisborde, fill=white, rounded corners=3pt,
+               minimum height=8mm, inner xsep=6pt, align=center},
+  modulo/.style={caja, fill=acento!8, draw=acento!40, minimum width=21mm,
+                 font=\scriptsize},
+  flecha/.style={->, draw=tinta!65, thick},
+]
+
+% --- Fila de módulos de dominio (ancla de todo el bloque) ---
+\node[modulo] (identity) at (0,0) {identity};
+\node[modulo, right=2mm of identity] (accounts) {accounts};
+\node[modulo, right=2mm of accounts] (transfers) {transfers};
+\node[modulo, right=2mm of transfers] (ledger) {ledger};
+\node[modulo, right=2mm of ledger] (idem) {idempotency};
+
+\coordinate (centro) at ($(identity.west)!0.5!(idem.east)$);
+
+% --- Capa HTTP, encima y centrada ---
+\node[caja, minimum width=112mm, anchor=south]
+  (routers) at ($(centro)+(0,10mm)$)
+  {\codigo{api/}\ \ routers, esquemas Pydantic, autenticación\\[-3pt]
+   {\scriptsize limitación de peticiones y manejo central de errores}};
+
+% --- Capa de plataforma, debajo y centrada ---
+\node[caja, minimum width=112mm, anchor=north] (platform) at ($(centro)-(0,10mm)$)
+  {\codigo{platform/}\ \ configuración, unidad de trabajo, dinero\\[-3pt]
+   {\scriptsize registro estructurado y seguridad}};
+
+% --- Contenedor del backend ---
+\begin{scope}[on background layer]
+  \node[draw=grisborde, rounded corners=5pt, fill=grisclaro, inner sep=9pt,
+        fit=(routers)(identity)(idem)(platform)] (api) {};
+\end{scope}
+% La etiqueta va a la izquierda del borde para no cruzarse con la flecha
+% que entra por el centro.
+\node[font=\scriptsize\bfseries, color=acento, anchor=south west]
+  at ([shift={(2mm,1mm)}]api.north west) {Backend FastAPI};
+
+% --- Cliente ---
+\node[caja, minimum width=34mm, above=14mm of api.north]
+  (ui) {React + Vite\\[-3pt]{\scriptsize TypeScript}};
+\node[font=\scriptsize\bfseries, color=acento, above=1pt of ui] {Cliente};
+
+% --- Base de datos ---
+\node[caja, cylinder, shape border rotate=90, aspect=0.10,
+      fill=acento!12, draw=acento!50, minimum width=62mm,
+      below=14mm of api.south] (db)
+  {PostgreSQL 16\\[-3pt]
+   {\scriptsize users \textbullet\ accounts \textbullet\ transfers
+    \textbullet\ ledger\_entries \textbullet\ idempotency\_keys}};
+
+% --- Flechas principales ---
+\draw[flecha] (ui.south) -- node[right, font=\scriptsize, xshift=1mm]
+  {HTTPS, JSON, JWT} (ui.south|-api.north);
+\draw[flecha] (api.south) -- node[right, font=\scriptsize, xshift=1mm]
+  {una transacción por caso de uso} (db.north);
+
+\draw[flecha] (routers.south) -- (transfers.north);
+
+
+\end{tikzpicture}

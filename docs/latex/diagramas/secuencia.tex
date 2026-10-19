@@ -1,0 +1,83 @@
+% Secuencia de una transferencia, con el camino de idempotencia.
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Stealth[length=2mm]},
+  actor/.style={draw=acento!55, fill=acento!10, rounded corners=2pt,
+                minimum width=22mm, minimum height=6mm,
+                font=\scriptsize\bfseries},
+  vida/.style={draw=tinta!35, dashed},
+  msj/.style={->, draw=tinta!75},
+  ret/.style={->, draw=tinta!45, dashed},
+  rotulo/.style={font=\scriptsize, align=center, fill=white, inner sep=1.5pt},
+  nota/.style={draw=aviso!60, fill=yellow!10, rounded corners=2pt,
+               text width=54mm, inner sep=4pt, font=\scriptsize, align=left},
+]
+
+\def\xC{0}   \def\xA{4.2}  \def\xS{8.6}  \def\xD{13.2}
+\def\yBot{-12.2}
+
+\node[actor] (C) at (\xC,0) {Cliente};
+\node[actor] (A) at (\xA,0) {API};
+\node[actor] (S) at (\xS,0) {Servicio};
+\node[actor] (D) at (\xD,0) {PostgreSQL};
+
+\foreach \x in {\xC,\xA,\xS,\xD} \draw[vida] (\x,-0.35) -- (\x,\yBot);
+
+% Barra de actividad de la transacción
+\fill[acento!20, draw=acento!45] (\xD-0.09,-2.5) rectangle (\xD+0.09,-10.9);
+
+% --- Mensajes ---
+\draw[msj] (\xC,-1.0) -- (\xA,-1.0);
+\node[rotulo, above] at ({(\xC+\xA)/2},-1.0)
+  {\codigo{POST /transfers}\\[-2pt]{\tiny con \codigo{Idempotency-Key}}};
+
+\draw[msj] (\xA,-1.9) -- (\xS,-1.9);
+\node[rotulo, above] at ({(\xA+\xS)/2},-1.9)
+  {valida esquema y token;\\[-2pt]{\tiny la cuenta origen sale del \codigo{sub}}};
+
+\draw[msj] (\xS,-2.7) -- (\xD,-2.7);
+\node[rotulo, above] at ({(\xS+\xD)/2},-2.7) {\codigo{BEGIN}};
+
+\draw[msj] (\xS,-3.5) -- (\xD,-3.5);
+\node[rotulo, above] at ({(\xS+\xD)/2},-3.5)
+  {\codigo{INSERT INTO idempotency\_keys}\\[-2pt]\codigo{ON CONFLICT DO NOTHING}};
+
+\draw[ret] (\xD,-4.2) -- (\xS,-4.2);
+\node[rotulo, above] at ({(\xS+\xD)/2},-4.2) {clave reclamada};
+
+\draw[msj] (\xS,-5.1) -- (\xD,-5.1);
+\node[rotulo, above] at ({(\xS+\xD)/2},-5.1)
+  {\codigo{SELECT ... id=:a FOR UPDATE}\\[-2pt]
+   \codigo{SELECT ... id=:b FOR UPDATE}};
+
+\node[nota, anchor=north west] at (\xC-0.4,-5.9) {%
+  \textbf{Orden ascendente de identificador.} Dos sentencias separadas y no un
+  \codigo{IN (...) ORDER BY}: el orden en que el motor bloquea un conjunto
+  depende del plan de ejecución. Así la espera circular es imposible.};
+
+\draw[msj] (\xS,-6.6) -- (\xD,-6.6);
+\node[rotulo, above] at ({(\xS+\xD)/2},-6.6)
+  {\codigo{INSERT INTO transfers}};
+
+\draw[msj] (\xS,-7.4) -- (\xD,-7.4);
+\node[rotulo, above] at ({(\xS+\xD)/2},-7.4)
+  {\codigo{INSERT} dos asientos ($-x$, $+x$)\\[-2pt]
+   \codigo{UPDATE} los dos saldos};
+
+\draw[msj] (\xS,-8.4) -- (\xD,-8.4);
+\node[rotulo, above] at ({(\xS+\xD)/2},-8.4)
+  {\codigo{UPDATE idempotency\_keys}\\[-2pt]{\tiny con la respuesta a reproducir}};
+
+\draw[msj] (\xS,-9.3) -- (\xD,-9.3);
+\node[rotulo, above] at ({(\xS+\xD)/2},-9.3) {\codigo{COMMIT}};
+
+\node[nota, anchor=north west, draw=acento!60, fill=acento!8]
+  at (\xC-0.4,-9.9) {%
+  \textbf{Un único \codigo{COMMIT}} confirma asientos, saldos y registro de
+  idempotencia. No hay ningún instante en el que el dinero se haya movido y la
+  clave no esté escrita.};
+
+\draw[ret] (\xA,-11.8) -- (\xC,-11.8);
+\node[rotulo, above] at ({(\xC+\xA)/2},-11.8) {\codigo{201 Created}};
+
+\end{tikzpicture}

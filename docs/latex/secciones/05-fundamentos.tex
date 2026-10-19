@@ -1,0 +1,104 @@
+\section{Fundamentos teóricos}
+
+\subsection{Transacciones y propiedades ACID}
+
+El acrónimo ACID se consolida en el trabajo de Haerder y Reuter de
+1983~\cite{haerder1983}, que agrupa atomicidad, consistencia, aislamiento y
+durabilidad como las propiedades que un gestor transaccional debe garantizar.
+El cuadro~\ref{tab:acid} traduce cada una al contexto de PayCore.
+
+\begin{table}[htbp]
+\centering
+\caption{Propiedades ACID aplicadas a PayCore.}
+\label{tab:acid}
+\small
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Propiedad} & \textbf{Qué significa aquí} & \textbf{Mecanismo} \\
+\midrule
+Atomicidad & El débito y el crédito ocurren los dos o ninguno &
+  Una sola transacción SQL con \codigo{COMMIT}/\codigo{ROLLBACK} \\
+Consistencia & Ningún saldo negativo; la suma de asientos es cero &
+  Restricciones \codigo{CHECK} y un trigger de restricción diferido \\
+Aislamiento & Dos transferencias simultáneas no se pisan &
+  Bloqueo de fila ordenado, o nivel \codigo{SERIALIZABLE} \\
+Durabilidad & Una transferencia confirmada sobrevive a un corte &
+  Registro de escritura anticipada (WAL) de PostgreSQL \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Recuperación por registro de escritura anticipada}
+
+La documentación de PostgreSQL establece que los cambios a los ficheros de
+datos deben escribirse solo después de que los registros WAL que los describen
+se hayan volcado a almacenamiento permanente, de modo que ante una caída la
+base se pueda recuperar a partir del registro~\cite{pg16wal}.
+
+La consecuencia práctica para PayCore es importante y a menudo se malinterpreta:
+\textbf{la ventana peligrosa no existe dentro de la base de datos}. Si el
+proceso muere antes del \codigo{COMMIT}, PostgreSQL descarta el trabajo no
+confirmado. La ventana existe \emph{fuera}, entre el \codigo{COMMIT} y la
+respuesta HTTP que el cliente nunca recibe, y se cierra con idempotencia
+(sección~\ref{sec:idempotencia}) y no con ACID.
+
+\subsection{Control de concurrencia multiversión}
+
+PostgreSQL implementa internamente tres niveles de aislamiento aunque acepta
+los cuatro del estándar SQL: su modo \emph{Read Uncommitted} se comporta como
+\emph{Read Committed}, que es la única forma sensata de mapear los niveles
+estándar a una arquitectura multiversión~\cite{pg16iso}. El nivel por defecto,
+Read Committed, evita lecturas sucias pero \textbf{permite} lecturas no
+repetibles, fantasmas y anomalías de serialización. Es decir, el nivel por
+defecto no protege por sí solo del escenario del cuadro~\ref{tab:lostupdate}.
+
+La taxonomía de anomalías y la razón por la que los niveles ANSI resultan
+insuficientes están analizadas en Berenson \emph{et al.}~\cite{berenson1995},
+referencia canónica para explicar por qué el aislamiento por instantáneas no
+equivale a la serializabilidad.
+
+\subsection{Aislamiento serializable por instantáneas}
+
+Ports y Grittner describen la implementación de \emph{serializable snapshot
+isolation} en PostgreSQL~9.1~\cite{ports2012}. Su resumen reporta un coste de
+rendimiento inferior al 7\,\% respecto al aislamiento por instantáneas, y en
+la evaluación del microbanco SIBENCH matizan que el seguimiento de
+dependencias de lectura supone una sobrecarga de CPU del 10 al 20\,\%.
+
+Conviene subrayar que esas cifras son del artículo y se refieren a sus cargas,
+no a PayCore. Las mediciones propias, que arrojan diferencias mucho mayores
+bajo contención máxima, están en la sección~\ref{sec:rendimiento}, y la razón
+de la discrepancia se discute en la sección~\ref{sec:resultados}.
+
+\subsection{Representación del dinero}
+
+El punto flotante binario definido por IEEE~754 no representa exactamente
+valores como $0{,}1$ o $0{,}01$, lo que produce errores de redondeo
+acumulativos; Goldberg desarrolla la cuestión en detalle~\cite{goldberg1991}.
+La propia documentación de PostgreSQL advierte de forma explícita de que los
+números en punto flotante no deberían usarse para manejar dinero debido al
+potencial de errores de redondeo~\cite{pg16money}.
+
+Las dos representaciones correctas son enteros en la unidad mínima (céntimos)
+o un tipo decimal de precisión arbitraria. PayCore elige la primera, y la
+justificación está en la sección~\ref{sec:basededatos}.
+
+\subsection{Contabilidad por partida doble}
+
+La partida doble es la práctica contable estándar desde Pacioli (1494). Fowler
+la describe como patrón de software: las cuentas son recipientes cuyo saldo se
+deriva de los asientos acumulados, y una transacción contable enlaza
+explícitamente los asientos entre cuentas~\cite{fowler2006}.
+
+No es un adorno académico. Square documenta haber construido \emph{Books}, un
+servicio de contabilidad por partida doble inmutable, precisamente porque sus
+servicios de liquidación mostraban ocasionalmente inconsistencias de datos que
+derivaban en consultas de clientes y depósitos retrasados~\cite{square2019}.
+
+\subsection{Latencia de cola}
+
+Dean y Barroso argumentan que en sistemas de servicio la media es una medida
+engañosa y que las colas de la distribución dominan la experiencia
+real~\cite{dean2013}. Esa es la razón por la que la
+sección~\ref{sec:rendimiento} reporta percentiles p50, p95 y p99 junto con el
+máximo observado, y nunca la media sola.

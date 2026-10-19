@@ -1,0 +1,106 @@
+\section{Justificación de tecnologías}
+\label{sec:tecnologias}
+
+Regla de admisión aplicada a todo el proyecto: \emph{una tecnología entra solo
+si hay un requisito o un experimento planificado que la necesite}. El
+cuadro~\ref{tab:stack} resume las elecciones y el~\ref{tab:descartes} las
+exclusiones con su condición de reingreso.
+
+\begin{table}[htbp]
+\centering
+\caption{Matriz de decisiones tecnológicas.}
+\label{tab:stack}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}lllXX@{}}
+\toprule
+\textbf{Componente} & \textbf{Elegida} & \textbf{Alternativa} &
+\textbf{Motivo} & \textbf{Cómo se comprueba} \\
+\midrule
+Base de datos & PostgreSQL 16 & MySQL, SQLite &
+  Único con \codigo{FOR UPDATE} documentado, \codigo{SERIALIZABLE} por SSI y
+  \codigo{CHECK} de columna & Prueba D y reconciliación \\
+Framework & FastAPI & Django REST, Flask &
+  OpenAPI desde los tipos; dependencias de autenticación por router &
+  Especificación versionada y comparada en CI \\
+Acceso a datos & SQLAlchemy 2.x & SQL crudo, Tortoise &
+  Control explícito de transacción y bloqueo; aislamiento por transacción &
+  Prueba de que el esquema migrado no diverge \\
+Migraciones & Alembic & SQL numerado &
+  Versionadas y reversibles & Prueba de \codigo{downgrade} y \codigo{upgrade} \\
+Contraseñas & Argon2id & bcrypt &
+  Primera recomendación de OWASP con parámetros citables~\cite{owasppwd} &
+  Prueba que lee el hash de la base \\
+Sesión & JWT HS256 & Sesión en base de datos &
+  Sin estado de servidor; suficiente para un solo servicio &
+  Pruebas de token ausente, caducado y manipulado \\
+Frontend & React + Vite + TS & Plantillas Jinja &
+  Separación de contrato; tipos derivables de OpenAPI &
+  Compilación y comprobación de tipos en CI \\
+Contenedores & Docker Compose & Instalación manual &
+  Un comando reproduce el entorno completo & Script de arranque limpio \\
+Pruebas & Pytest & unittest &
+  Fixtures y marcadores por nivel & 96 pruebas en CI \\
+Carga & Locust & k6, JMeter &
+  Escenarios en el mismo lenguaje; exportación de resultados~\cite{locust} &
+  CSV versionados \\
+CI & GitHub Actions & Ejecución local &
+  PostgreSQL como servicio del runner & Insignia de estado \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Las tres elecciones que más condicionan el proyecto}
+
+\paragraph{PostgreSQL 16.} Es el único candidato evaluado que ofrece a la vez
+\codigo{SELECT FOR UPDATE} con semántica y recomendaciones de orden de bloqueo
+documentadas~\cite{pg16lock}, un \codigo{SERIALIZABLE} genuino implementado
+mediante aislamiento serializable por instantáneas~\cite{ports2012},
+restricciones \codigo{CHECK} que permiten que la no negatividad sea una
+garantía del motor, tipos exactos para dinero~\cite{pg16money} y durabilidad
+por WAL~\cite{pg16wal}. El proyecto necesita las dos estrategias de
+concurrencia en el mismo motor para poder compararlas sin comparar motores.
+
+\paragraph{FastAPI con endpoints síncronos.} El soporte asíncrono del
+framework invita a mezclar código bloqueante y no bloqueante. La decisión
+explícita fue usar \textbf{endpoints síncronos} con SQLAlchemy síncrono,
+ejecutados en el grupo de hilos de Starlette, para no arriesgar el bloqueo del
+bucle de eventos con el controlador de base de datos. Esa decisión tuvo una
+consecuencia que no se previó y que la carga destapó: el límite del grupo de
+hilos y la capacidad del pool de conexiones deben fijarse juntos. Se detalla
+en la sección~\ref{sec:rendimiento}.
+
+\paragraph{Locust.} Se eligió por escribir los escenarios en el mismo lenguaje
+que el backend. Tiene dos limitaciones que se declaran por adelantado: mide la
+respuesta de la API y no si el dinero quedó registrado, y al ser un generador
+de bucle cerrado está sujeto a omisión coordinada, de modo que las latencias
+altas quedan subrepresentadas. Lo primero se compensa con la verificación
+contra la base de datos; lo segundo justifica reportar percentiles y nunca la
+media sola~\cite{dean2013}.
+
+\begin{table}[htbp]
+\centering
+\caption{Tecnologías descartadas y su condición de reingreso.}
+\label{tab:descartes}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Tecnología} & \textbf{Por qué no entra} & \textbf{Qué la haría entrar} \\
+\midrule
+Redis & Como caché no hay problema de lectura que resolver. Como almacén de
+  idempotencia \textbf{rompería la atomicidad}, al dejar la clave y el dinero
+  en sistemas distintos y reabrir la ventana que el diseño cierra &
+  Pasar a más de un proceso de API, momento en que el contador de limitación
+  de peticiones debe ser compartido \\
+Kafka, RabbitMQ & No hay consumidores asíncronos; la transferencia debe ser
+  síncrona y atómica &
+  Notificaciones, antifraude asíncrono o analítica \\
+Kubernetes & Un despliegue y una base de datos; Compose cubre el caso &
+  Despliegue multirréplica con autoescalado \\
+Microservicios & Rompen la atomicidad y obligan a Saga o 2PC~\cite{fowler2015} &
+  Equipos independientes y fronteras validadas por uso real \\
+Prometheus, Grafana & A esta escala se cubre con registro estructurado y los
+  CSV de carga & Operación continua, no experimentos puntuales \\
+IA en la ruta del dinero & Límite de diseño permanente & No aplica \\
+\bottomrule
+\end{tabularx}
+\end{table}

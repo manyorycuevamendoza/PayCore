@@ -1,0 +1,43 @@
+\section{Introducción}
+
+Una transferencia de dinero parece una operación sencilla: restar de una
+cuenta y sumar a otra. Casi toda la dificultad de un sistema de pagos está en
+lo que ocurre cuando esa operación no sale según lo previsto. Qué pasa si el
+proceso muere a la mitad, si dos peticiones llegan a la vez, si la respuesta
+se pierde en la red y el cliente reintenta, o si alguien envía el
+identificador de una cuenta ajena.
+
+Este informe documenta el diseño, la construcción y la verificación de
+PayCore, un prototipo educativo que aborda exactamente esas situaciones. El
+proyecto nace como pieza de portafolio en Ciencia de la Computación, con un
+criterio que ha gobernado todas las decisiones: \emph{poder explicar y
+defender por qué cada cosa está hecha como está}.
+
+\subsection{Enfoque}
+
+Tres reglas de trabajo, fijadas antes de escribir la primera línea de código:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{Investigar antes de programar.} Las decisiones sobre
+    aislamiento, idempotencia o representación del dinero se tomaron después
+    de leer la documentación oficial y la bibliografía correspondiente, no por
+    costumbre. La investigación completa está en el repositorio y se resume en
+    la sección~\ref{sec:investigacion}.
+  \item \textbf{Verificar en los datos, no en las respuestas.} Un servicio que
+    devolviera \codigo{201 Created} a todo sin escribir nada pasaría cualquier
+    prueba que solo mire códigos HTTP. Por eso todas las aserciones sobre
+    dinero consultan PostgreSQL directamente.
+  \item \textbf{No añadir tecnología sin un requisito que la justifique.} No
+    hay Redis, ni Kafka, ni Kubernetes, ni microservicios, ni modelos de
+    aprendizaje automático. Para cada uno de ellos está escrita la condición
+    concreta bajo la cual entraría.
+\end{enumerate}
+
+\subsection{Estructura del documento}
+
+Las secciones \ref{sec:problema} a \ref{sec:investigacion} plantean el
+problema y la investigación previa. Las secciones \ref{sec:tecnologias} a
+\ref{sec:seguridad} describen las decisiones técnicas y su implementación. Las
+secciones \ref{sec:pruebas} a \ref{sec:resultados} presentan la verificación y
+las mediciones. El documento cierra con las limitaciones reconocidas, el
+trabajo futuro y las conclusiones.

@@ -1,0 +1,85 @@
+\section{Estrategia de idempotencia}
+\label{sec:idempotencia}
+
+\subsection{El problema que ACID no resuelve}
+
+El servidor confirma la transferencia y la respuesta se pierde antes de llegar
+al cliente. El cliente no sabe si pagó. Si reintenta y el servidor trata la
+petición como nueva, se paga dos veces. El problema ocurre \emph{fuera} del
+límite de la transacción, así que ninguna propiedad ACID lo cubre.
+
+\subsection{Diseño adoptado}
+
+Tabla \codigo{idempotency\_keys} en PostgreSQL con unicidad sobre
+\codigo{(user\_id, key)}, huella SHA-256 del método, la ruta y el cuerpo
+canonicalizado, y un estado que distingue las peticiones en curso de las
+finalizadas.
+
+El protocolo tiene cuatro caminos, resumidos en el
+cuadro~\ref{tab:idempotencia}.
+
+\begin{table}[htbp]
+\centering
+\caption{Comportamiento ante una clave de idempotencia.}
+\label{tab:idempotencia}
+\small
+\begin{tabularx}{\textwidth}{@{}lXl@{}}
+\toprule
+\textbf{Situación} & \textbf{Comportamiento} & \textbf{Respuesta} \\
+\midrule
+Clave nueva & Se reclama con \codigo{INSERT ... ON CONFLICT DO NOTHING} y se
+  procesa & 201 o 422 \\
+Misma clave, mismo cuerpo, finalizada & Se reproduce la respuesta guardada &
+  la original, con \codigo{Idempotent-Replay: true} \\
+Misma clave, mismo cuerpo, en curso & No se procesa nada & 409 \\
+Misma clave, cuerpo distinto & No se procesa nada & 422 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Los códigos 409 y 422 son los que recomienda el borrador del IETF sobre la
+cabecera \codigo{Idempotency-Key}~\cite{ietfidem}. Conviene precisar que ese
+documento está \textbf{expirado}, por lo que se cita como práctica emergente y
+no como estándar. El tiempo de vida de 24 horas está alineado con la política
+publicada de Stripe para su API v1~\cite{stripeidem}.
+
+\subsection{La decisión que hace que esto funcione}
+
+La clave se reclama y se cierra \textbf{dentro de la misma transacción} que
+mueve el dinero. Si se escribiera después del \codigo{COMMIT}, una caída entre
+ambos pasos dejaría una transferencia ejecutada sin registro de idempotencia,
+y el reintento la duplicaría. Al compartir transacción, la atomicidad del
+motor cubre las dos cosas: o se movió el dinero y la clave quedó escrita, o no
+ocurrió ninguna de las dos.
+
+Esta es también la razón por la que Redis quedó descartado para este uso:
+poner la clave y el dinero en sistemas distintos reabre exactamente la ventana
+que el diseño cierra.
+
+\subsection{Ámbito por usuario}
+
+La unicidad es \codigo{(user\_id, key)} y no solo \codigo{key}. Evita
+colisiones entre clientes y, más importante, impide que alguien reutilice la
+clave de otro para obtener su respuesta almacenada. Es una propiedad de
+seguridad además de una de corrección, y hay una prueba que la verifica.
+\estado{verificado}
+
+\subsection{Un caso que el diseño no había previsto}
+
+Al implementar apareció una situación que el diseño sobre papel no
+contemplaba. Si el \codigo{INSERT} choca con una fila que otra transacción aún
+no ha confirmado, en Read Committed la consulta posterior \emph{tampoco la
+ve}: no se reclama la clave y no se encuentra la existente.
+
+Semánticamente es justo el caso de petición concurrente en curso, así que se
+responde 409. Hay una prueba con dos hilos y dos conexiones reales que
+comprueba que exactamente uno reclama la clave y que el dinero se mueve una
+sola vez. \estado{verificado}
+
+\subsection{El lado del cliente}
+
+La interfaz web genera la clave una vez por intento de operación y la
+\textbf{conserva entre reintentos}. Si la petición falla por red, no la
+descarta: muestra \enquote{Resultado no confirmado}, cambia el botón a
+\enquote{Reintentar envío} y reenvía la misma clave. De poco sirve un servidor
+idempotente si el cliente genera una clave nueva en cada intento.

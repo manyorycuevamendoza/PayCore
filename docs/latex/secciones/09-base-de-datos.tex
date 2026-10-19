@@ -1,0 +1,132 @@
+\section{Diseño de base de datos}
+\label{sec:basededatos}
+
+\subsection{Modelo entidad-relación}
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/entidad-relacion}}
+\caption{Modelo de datos de PayCore.}
+\label{fig:er}
+\end{figure}
+
+\subsection{El libro mayor como fuente de verdad}
+
+Cada transferencia completada genera \textbf{exactamente dos asientos} en
+\codigo{ledger\_entries}: uno negativo en la cuenta de origen y uno positivo
+en la de destino, de igual magnitud y ligados por \codigo{transfer\_id}. La
+tabla es de solo inserción.
+
+La columna \codigo{accounts.balance\_cents} es una \emph{proyección
+materializada} de ese libro mayor, escrita en la misma transacción. No es una
+duplicación descuidada sino una decisión con contrapartidas explícitas:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{A favor:} lectura de saldo en $O(1)$, existe una fila concreta
+    sobre la que adquirir el bloqueo, y la restricción
+    \codigo{CHECK (balance\_cents >= 0)} es posible porque hay una columna que
+    restringir.
+  \item \textbf{En contra:} dos representaciones que deben coincidir. Se
+    acepta con dos obligaciones: escribir ambas en la misma transacción, y una
+    prueba de reconciliación que recalcula desde el libro mayor y se ejecuta
+    al final de cada suite y después de cada carrera de carga.
+\end{itemize}
+
+\subsection{El origen del dinero simulado}
+
+El saldo ficticio no aparece de la nada. Entra desde una cuenta de sistema,
+\codigo{SYSTEM\_FUNDING}, que es la \textbf{única exenta} de la restricción de
+no negatividad. Así la suma global de asientos sigue siendo exactamente cero
+incluso después de cargar los datos de prueba, y el origen queda auditado en
+lugar de materializarse por decreto. Es la excepción declarada a la
+conservación del saldo total, y es una operación administrativa explícita que
+no se expone por la API. \estado{verificado}
+
+\subsection{Invariantes y dónde se aplican}
+
+El cuadro~\ref{tab:invariantes} enumera las diez invariantes del sistema. La
+columna más importante es la tercera: nueve de las diez se aplican en el motor
+de base de datos, no en Python.
+
+\begin{table}[htbp]
+\centering
+\caption{Invariantes del sistema y su punto de aplicación.}
+\label{tab:invariantes}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}llXl@{}}
+\toprule
+\textbf{Id} & \textbf{Invariante} & \textbf{Dónde se aplica} &
+\textbf{Prueba} \\
+\midrule
+I1 & Ningún saldo de usuario negativo &
+  \codigo{CHECK (kind = 'system' OR balance\_cents >= 0)} & B y D \\
+I2 & Importe estrictamente positivo &
+  \codigo{CHECK (amount\_cents > 0)} y validación de esquema & F \\
+I3 & Origen distinto de destino & \codigo{CHECK} de tabla & unitaria \\
+I4 & Dos asientos por transferencia que suman cero &
+  Trigger de restricción \codigo{DEFERRABLE INITIALLY DEFERRED} & A y esquema \\
+I5 & Suma global del libro mayor igual a cero &
+  Prueba de reconciliación sobre la base & toda la suite \\
+I6 & Saldo materializado igual a la suma de asientos &
+  Prueba de reconciliación & toda la suite \\
+I7 & Ninguna transferencia parcial & Una sola transacción SQL & E \\
+I8 & Un reintento no crea movimientos &
+  Clave persistida en la misma transacción & C y E \\
+I9 & Un usuario solo opera sobre su cuenta &
+  La cuenta origen sale del token, nunca del cuerpo & F \\
+I10 & El libro mayor es de solo inserción &
+  Trigger que rechaza \codigo{UPDATE} y \codigo{DELETE} & esquema \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Dos garantías que merecen detalle}
+
+\paragraph{I4, verificada al confirmar.} Un \codigo{CHECK} de columna no puede
+expresar \enquote{esta transferencia tiene exactamente dos asientos que suman
+cero}, porque es una condición sobre un conjunto de filas que se insertan
+dentro de la misma transacción. Se implementa con un trigger de restricción
+diferido: dentro de la transacción los asientos pueden estar momentáneamente
+descuadrados, y es el \codigo{COMMIT} el que rechaza el conjunto si no cuadra.
+
+\begin{lstlisting}[language=SQL,caption={Trigger de restricción que verifica
+el cuadre al confirmar la transacción.},label={lst:trigger}]
+CREATE OR REPLACE FUNCTION paycore_check_ledger_balanced() RETURNS trigger AS $$
+DECLARE v_count integer; v_sum bigint;
+BEGIN
+    SELECT count(*), coalesce(sum(amount_cents), 0) INTO v_count, v_sum
+      FROM ledger_entries WHERE transfer_id = NEW.transfer_id;
+    IF v_count <> 2 THEN
+        RAISE EXCEPTION 'ledger desbalanceado: la transferencia % tiene % asientos
+            y se esperaban 2', NEW.transfer_id, v_count
+            USING ERRCODE = 'check_violation';
+    END IF;
+    IF v_sum <> 0 THEN
+        RAISE EXCEPTION 'ledger desbalanceado: los asientos de la transferencia %
+            suman % y se esperaba 0', NEW.transfer_id, v_sum
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER trg_ledger_balanced
+AFTER INSERT ON ledger_entries
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION paycore_check_ledger_balanced();
+\end{lstlisting}
+
+\paragraph{I10, solo inserción.} Un segundo trigger rechaza cualquier
+\codigo{UPDATE} o \codigo{DELETE} sobre \codigo{ledger\_entries}. La operación
+\codigo{TRUNCATE} sigue siendo posible, que es lo que usan las pruebas para
+limpiar entre casos; una corrección contable se haría con un asiento de
+reversión, nunca borrando historia.
+
+\subsection{Migraciones}
+
+El esquema completo se crea en una única migración de Alembic versionada,
+incluidos los dos triggers y la extensión \codigo{citext}. Dos pruebas
+protegen esta parte: una comprueba que \codigo{downgrade base} seguido de
+\codigo{upgrade head} reconstruye el esquema, y otra que el esquema migrado no
+diverge de los modelos declarados, de modo que cambiar un modelo y olvidar la
+migración pone el CI en rojo. \estado{verificado}

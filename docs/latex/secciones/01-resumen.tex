@@ -1,0 +1,66 @@
+\section{Resumen ejecutivo}
+
+PayCore es un motor transaccional para una billetera digital con saldo
+simulado. Su objetivo no es parecerse a una aplicación comercial, sino
+demostrar que las garantías que un sistema de pagos debe ofrecer se pueden
+construir, probar y defender con argumentos verificables.
+
+El sistema implementa un libro mayor de doble entrada inmutable como fuente de
+verdad del saldo, control de concurrencia respaldado por la base de datos,
+idempotencia persistente confirmada en la misma transacción que el movimiento
+de dinero, autenticación con Argon2id y JWT, y una interfaz web que deja claro
+en todo momento que los fondos no son reales.
+
+\subsection*{Qué se construyó}
+
+Un monolito modular en Python con FastAPI y SQLAlchemy sobre PostgreSQL~16,
+una interfaz en React con TypeScript, 96 pruebas automatizadas que se ejecutan
+contra un PostgreSQL real, y un conjunto de mediciones de carga con Locust
+cuyos datos crudos están versionados en el repositorio.
+
+\subsection*{Resultados verificados}
+
+\begin{itemize}[leftmargin=1.2em]
+  \item Las seis pruebas funcionales exigidas (transferencia correcta, fondos
+    insuficientes, solicitud duplicada, cien solicitudes concurrentes, fallos
+    antes y después del \codigo{COMMIT}, y seguridad) pasan y se comprueban
+    \textbf{consultando la base de datos}, no las respuestas HTTP.
+  \item Bajo contención máxima, con cien usuarios durante sesenta segundos y
+    cuatro procesos de API compitiendo, el libro mayor sumó exactamente cero,
+    ninguna cuenta quedó descuadrada y ningún saldo resultó negativo, con las
+    dos estrategias de concurrencia implementadas.
+  \item La estrategia pesimista confirmó 148,3 transferencias por segundo
+    frente a 10,4 de la estrategia \codigo{SERIALIZABLE}, cuya tasa de fallo
+    alcanzó el 83,72\,\% por agotamiento de reintentos. La diferencia solo es
+    visible contando filas en PostgreSQL: en peticiones por segundo la brecha
+    aparentaba ser de apenas un 57\,\%.
+\end{itemize}
+
+\subsection*{Dos defectos reales encontrados por las pruebas}
+
+El valor de este trabajo no está solo en lo que funciona, sino en lo que falló
+y fue detectado:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item Una \textbf{actualización perdida} que ninguna prueba de un solo hilo
+    podía ver. El bloqueo \codigo{SELECT FOR UPDATE} se adquiría
+    correctamente, pero el mapa de identidad de SQLAlchemy devolvía el objeto
+    ya cargado sin refrescar sus atributos, de modo que la comprobación de
+    fondos evaluaba un saldo obsoleto. Con el defecto presente, la prueba de
+    concurrencia aprobaba 88 transferencias de 100 cuando el máximo posible
+    eran 3, y las 76 pruebas existentes pasaban todas.
+  \item Un \textbf{agotamiento del pool de conexiones} que la carga destapó.
+    La sesión de base de datos se obtenía como dependencia del framework, lo
+    que retenía la conexión fuera del hilo que la usaba. Corregirlo multiplicó
+    por 7,4 el rendimiento de lectura y redujo el peor tiempo de respuesta de
+    30\,664\,ms a 1\,100\,ms.
+\end{enumerate}
+
+\subsection*{Lo que PayCore no es}
+
+No es una plataforma bancaria de producción. Funciona sobre un solo nodo de
+base de datos sin alta disponibilidad, su limitación de peticiones cuenta en
+memoria de cada proceso, sus tokens no admiten revocación inmediata y su
+despliegue con Docker Compose no es un despliegue real. Estas limitaciones
+están enumeradas en la sección~\ref{sec:limitaciones} y declaradas también en
+el repositorio, porque conocerlas es parte del trabajo.

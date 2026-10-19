@@ -1,0 +1,73 @@
+\section{Conclusiones}
+\label{sec:conclusiones}
+
+\subsection{Sobre los objetivos}
+
+Los ocho objetivos específicos de la sección~2 se cumplieron, y siete de los
+ocho tienen verificación automatizada asociada. Las seis pruebas funcionales
+exigidas pasan, y todas comprueban el resultado en la base de datos en lugar
+de en las respuestas HTTP.
+
+\subsection{Sobre las garantías}
+
+La conclusión técnica central es que \textbf{las garantías de integridad no
+dependieron de la estrategia de concurrencia elegida}. En las cuatro carreras
+de escritura, con cien usuarios durante sesenta segundos y cuatro procesos
+compitiendo, el libro mayor sumó exactamente cero, ninguna cuenta quedó
+descuadrada y ningún saldo resultó negativo, tanto con bloqueo pesimista como
+con \codigo{SERIALIZABLE}.
+
+Lo que sí dependió de la estrategia fue cuánto trabajo se completó: 148,3
+frente a 10,4 transferencias confirmadas por segundo bajo contención máxima.
+Corrección y rendimiento resultaron ser dimensiones separables, y conviene no
+confundirlas al justificar una decisión.
+
+\subsection{Sobre dónde deben vivir las invariantes}
+
+Nueve de las diez invariantes del sistema se aplican en PostgreSQL y no en
+Python. Las diecisiete pruebas de esquema las atacan con SQL directo, sin
+pasar por la aplicación: si alguna viviera solo en el código, esas pruebas se
+pondrían rojas.
+
+Esa decisión tuvo un rendimiento concreto. La restricción de no negatividad
+nunca llegó a dispararse durante la actualización perdida, porque el saldo
+calculado a partir del valor obsoleto no cruzaba el cero. Una restricción de
+motor acota el daño, pero no sustituye a la prueba. Ambas cosas eran
+necesarias.
+
+\subsection{Sobre el método}
+
+Los dos defectos más valiosos del proyecto no los encontró la revisión de
+código, sino las pruebas que ejercitan el sistema en las condiciones en las
+que falla:
+
+\begin{itemize}[leftmargin=1.2em]
+  \item La \textbf{prueba de concurrencia} destapó una actualización perdida
+    con la que las 76 pruebas existentes pasaban todas. Tomar el bloqueo
+    correcto en SQL no basta si la capa de mapeo devuelve datos cacheados.
+  \item La \textbf{prueba de carga} destapó un agotamiento del pool de
+    conexiones causado por retener la sesión fuera del hilo que la usaba.
+    Corregirlo multiplicó por 7,4 el rendimiento de lectura.
+\end{itemize}
+
+A eso se añade una tercera lección, menos cómoda: una de las mediciones de
+este informe hubo que descartarla por no ser válida. Revisar críticamente los
+propios datos antes de publicarlos resultó ser tan necesario como medirlos.
+
+\subsection{Sobre lo que no se hizo}
+
+PayCore no incorpora Redis, ni Kafka, ni Kubernetes, ni microservicios, ni
+modelos de aprendizaje automático. Para cada uno está escrita la condición
+concreta bajo la cual entraría. Esa lista de exclusiones, con su justificación
+y su condición de reingreso, es tan parte del diseño como lo que sí se
+construyó: una decisión técnica no se defiende solo explicando lo que se
+eligió, sino también lo que se descartó y por qué.
+
+\subsection{Valoración final}
+
+El sistema cumple su propósito: demostrar, con pruebas reproducibles y
+mediciones propias, que las garantías que un motor de pagos debe ofrecer se
+pueden construir y verificar. No es una plataforma bancaria de producción y el
+informe dedica una sección entera a explicar por qué no lo es. Entre un
+prototipo que exagera lo que hace y uno que delimita con precisión lo que
+garantiza, el segundo es el que se puede defender.

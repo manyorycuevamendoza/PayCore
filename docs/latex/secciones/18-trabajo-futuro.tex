@@ -1,0 +1,61 @@
+\section{Trabajo futuro}
+\label{sec:futuro}
+
+Se ordena por el criterio que gobierna todo el proyecto: cada incorporación
+tiene que resolver un problema observado, no sonar avanzada.
+
+\subsection{Lo que arreglaría limitaciones ya conocidas}
+
+\begin{description}[leftmargin=0.6cm,style=nextline]
+  \item[Contador de limitación compartido.] En cuanto el despliegue pase de un
+    proceso, el límite actual deja de significar lo que dice. Es la condición
+    escrita de reingreso de Redis, donde sí resolvería un problema real sin
+    romper ninguna garantía transaccional.
+  \item[Revocación de tokens.] Una lista de revocación consultada por
+    identificador de token, o el paso a sesiones en base de datos si la
+    revocación inmediata se vuelve un requisito.
+  \item[Cookie \codigo{httpOnly} para el navegador.] Exige que la API y el
+    frontend compartan origen, y protección contra falsificación de petición
+    entre sitios.
+  \item[Réplica de lectura.] Las consultas de saldo e historial no necesitan
+    la instancia primaria. Antes de hacerlo habría que medir si la lectura es
+    realmente el cuello de botella; con los datos actuales no lo es.
+  \item[Medición de recursos.] Instrumentar CPU y memoria por proceso durante
+    las carreras, para completar lo que la sección~\ref{sec:rendimiento} deja
+    pendiente.
+\end{description}
+
+\subsection{Lo que ampliaría el alcance}
+
+\begin{description}[leftmargin=0.6cm,style=nextline]
+  \item[Reversiones contables.] Una transferencia errónea no se borra: se
+    compensa con un asiento de reversión. El libro mayor de solo inserción ya
+    está preparado para ello; falta el caso de uso y su autorización.
+  \item[Varias cuentas por usuario.] El modelo lo admite y la autorización ya
+    está escrita para el caso general; solo habría que levantar la
+    restricción de unicidad y ajustar la interfaz.
+  \item[Fracciones de céntimo.] Si alguna vez hicieran falta intereses o
+    comisiones prorrateadas, la vía es \codigo{NUMERIC} con una política de
+    redondeo explícita, nunca punto flotante.
+  \item[Arquitectura orientada a eventos para lo posterior.] Notificaciones,
+    puntuación de riesgo y analítica son consumidores naturales del libro
+    mayor. La transferencia seguiría siendo síncrona y atómica.
+\end{description}
+
+\subsection{Inteligencia artificial, con condiciones}
+
+El límite de diseño es permanente: \textbf{ningún modelo aprueba, rechaza ni
+modifica una transferencia o un saldo}. Dentro de ese límite:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{Reglas deterministas de riesgo} (velocidad de envío, importe
+    atípico frente al historial propio, receptor nuevo) que adjunten una marca
+    de revisión. Son baratas, explicables y auditables, y es lo que un sistema
+    real pone primero.
+  \item \textbf{Detección de anomalías no supervisada} como experimento, con
+    la etiqueta explícita de que los datos son sintéticos y el resultado no es
+    generalizable.
+  \item Un clasificador supervisado de fraude \textbf{no} entra: necesitaría
+    transacciones reales etiquetadas, que no existen y no se pueden fabricar
+    sin falsear el resultado~\cite{sculley2015}.
+\end{enumerate}

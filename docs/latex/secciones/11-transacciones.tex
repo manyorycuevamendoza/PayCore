@@ -1,0 +1,95 @@
+\section{Gestión de transacciones y concurrencia}
+\label{sec:transacciones}
+
+\subsection{Unidad de trabajo}
+
+Un caso de uso abre una transacción y la confirma una sola vez. Ese
+\codigo{COMMIT} cubre, para una transferencia, los asientos del libro mayor,
+los dos saldos materializados, la fila de \codigo{transfers} y el registro de
+idempotencia. La figura~\ref{fig:secuencia} muestra el flujo completo.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{\input{diagramas/secuencia}}
+\caption{Secuencia de una transferencia.}
+\label{fig:secuencia}
+\end{figure}
+
+\subsection{Dos estrategias implementadas}
+
+Ambas se seleccionan con la variable de entorno
+\codigo{PAYCORE\_CONCURRENCY\_STRATEGY}. No se trata de tener dos caminos en
+producción, sino de poder publicar una comparación con datos propios en lugar
+de una preferencia argumentada.
+
+\paragraph{\codigo{pessimistic} (por defecto).} Nivel Read Committed más
+\codigo{SELECT ... FOR UPDATE} sobre las filas de las dos cuentas, adquiridas
+siempre \textbf{en orden ascendente de identificador}.
+
+\paragraph{\codigo{serializable}.} Nivel \codigo{SERIALIZABLE} sin bloqueos de
+fila, con reintento ante \sqlstate{SQLSTATE 40001}, hasta tres intentos, con
+retardo exponencial y desviación aleatoria. La documentación de PostgreSQL
+indica expresamente que una aplicación que use este nivel debe disponer de una
+forma generalizada de manejar los fallos de serialización~\cite{pg16iso}.
+
+Que este modo \emph{no} tome bloqueos de fila es deliberado: con ellos las dos
+estrategias dejarían de ser distinguibles y la comparación no mediría nada.
+
+\subsection{Por qué dos sentencias y no un \codigo{IN (...) ORDER BY}}
+
+La primera versión del bloqueo usaba
+\codigo{WHERE id IN (:a, :b) ORDER BY id FOR UPDATE}. Es una formulación común
+y es \emph{insuficiente}: el orden en que PostgreSQL adquiere los bloqueos de
+un conjunto depende del plan de ejecución y no está garantizado por la
+cláusula de ordenación. La implementación final emite \textbf{dos sentencias
+separadas} en orden ascendente, de modo que el orden lo impone la aplicación.
+Como todas las instancias ordenan igual, la espera circular es imposible.
+
+La documentación del motor recomienda exactamente esta defensa: adquirir los
+bloqueos sobre múltiples objetos en un orden consistente~\cite{pg16lock}.
+
+\subsection{El deadlock no se reintenta}
+
+La función que envuelve la transacción reintenta ante \sqlstate{40001} pero
+\textbf{no} ante \sqlstate{40P01}, que es el código de deadlock. Es una
+decisión deliberada: el orden determinista de bloqueo debe hacerlo imposible,
+y reintentarlo enmascararía un fallo de diseño en lugar de exponerlo. Una
+prueba lanza cincuenta transferencias cruzadas simultáneas, que es el ejemplo
+de libro de la espera circular, y exige que las cincuenta se completen sin un
+solo error. \estado{verificado}
+
+\subsection{Un defecto real: la actualización perdida del mapa de identidad}
+
+\label{subsec:lostupdate}
+La prueba de concurrencia con cien peticiones aprobó \textbf{88 transferencias
+de 100} cuando el máximo posible eran 3. Las 76 pruebas existentes en ese
+momento pasaban todas.
+
+El bloqueo se adquiría correctamente. El defecto estaba una capa más arriba.
+El caso de uso leía la cuenta de origen \emph{sin} bloqueo antes de volver a
+leerla \emph{con} bloqueo. Cuando una entidad ya está en el mapa de identidad
+de la sesión de SQLAlchemy, la biblioteca devuelve ese mismo objeto sin
+refrescar sus atributos: la sentencia \codigo{FOR UPDATE} se ejecutaba y el
+bloqueo se tomaba, pero la comprobación de fondos evaluaba el saldo obsoleto
+leído antes del bloqueo. Eso es exactamente una actualización perdida.
+
+La corrección es una línea:
+
+\begin{lstlisting}[language=Python,caption={Sin \codigo{populate\_existing} el
+bloqueo se toma pero se razona sobre datos antiguos.},label={lst:populate}]
+cuenta = session.execute(
+    consulta.execution_options(populate_existing=True)
+).scalar_one_or_none()
+\end{lstlisting}
+
+Tres lecciones que este defecto deja documentadas:
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item Ninguna prueba de un solo hilo podía detectarlo.
+  \item Tomar el bloqueo correcto en SQL no basta si la capa de mapeo
+    devuelve datos cacheados.
+  \item La restricción \codigo{CHECK} de no negatividad no llegó a dispararse,
+    porque el saldo se calculaba a partir del valor obsoleto y la fila escrita
+    nunca cruzaba el cero. Una restricción de motor acota el daño, pero no
+    sustituye a la prueba.
+\end{enumerate}
