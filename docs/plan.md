@@ -9,9 +9,9 @@ Estado al 18 de octubre de 2026.
 | 1. Investigación | [docs/research.md](research.md) | **Completada** |
 | 2. Justificación del stack | [docs/stack.md](stack.md), 8 ADRs en [docs/decisions/](decisions/) | **Completada** |
 | 3. Diseño funcional | [docs/architecture.md](architecture.md) | **Completada** (diseño propuesto, sin código) |
-| 4. Backend | API FastAPI, migraciones, invariantes | **En curso** (H1 y H2 hechos) |
+| 4. Backend | API FastAPI, migraciones, invariantes | **En curso** (H1 a H6 hechos; faltan H7 concurrencia, H8 fallos y H9 rate limiting) |
 | 5. Interfaz web | React + Vite | Pendiente |
-| 6. Pruebas A-F | Suite pytest | Pendiente |
+| 6. Pruebas A-F | Suite pytest | **En curso**: A, B, C y F hechas y verificadas. Faltan D (concurrencia) y E (fallos) |
 | 7. Rendimiento | Locust, CSV y gráficos reales | Pendiente |
 | 8. Informe LaTeX | `docs/latex/main.tex` + PDF | Pendiente |
 | 9. README | `README.md` con capturas reales | Pendiente |
@@ -30,21 +30,25 @@ Tablas `users`, `accounts`, `transfers`, `ledger_entries`, `idempotency_keys` co
 **Criterio:** pruebas que intentan violar cada invariante directamente por SQL y reciben error del motor, sin pasar por la aplicación.
 **Verificado:** 24 pruebas en verde. Además del trigger de solo inserción se añadió `trg_ledger_balanced`, un trigger de restricción `DEFERRABLE INITIALLY DEFERRED` que al `COMMIT` rechaza cualquier transferencia cuyos asientos no sean exactamente dos y no sumen cero (invariante I4 aplicada por el motor, no por Python). También hay prueba de que el esquema migrado no diverge de los modelos y de que la migración es reversible.
 
-### H3. Identidad
+### H3. Identidad — **completado**
 Registro, login, Argon2id con los parámetros de OWASP, emisión y verificación de JWT, dependencia de autenticación a nivel de router.
 **Criterio:** pruebas de token ausente, expirado y con firma inválida.
+**Verificado:** 13 pruebas. Una de ellas lee el hash directamente de la base y comprueba que empieza por `$argon2id$` y lleva `m=19456,t=2,p=1`, los parámetros citados de OWASP. Correo y contraseña incorrectos devuelven el mismo error para no permitir enumerar cuentas. Se añadió validación de longitud mínima del secreto JWT (32 bytes, RFC 7518 §3.2), que saltó porque PyJWT avisaba de una clave corta en las pruebas.
 
-### H4. Transferencia, camino feliz
+### H4. Transferencia, camino feliz — **completado**
 Caso de uso completo con estrategia pesimista, asientos de doble entrada, saldo materializado, todo en una transacción.
 **Criterio:** Prueba A verificada **en la base de datos**: Ana 7000 ctms, Luis 5000 ctms, dos asientos con `transfer_id` común que suman cero.
+**Verificado:** sí, y además con `curl` contra el stack real levantado en Docker. Ver [docs/evidence/h3-h6-pruebas.md](evidence/h3-h6-pruebas.md). El bloqueo se adquiere con dos sentencias `SELECT ... FOR UPDATE` separadas en orden ascendente de identificador, y no con un único `WHERE id IN (...) ORDER BY id FOR UPDATE`, porque el orden en que PostgreSQL bloquea un conjunto depende del plan y no está garantizado.
 
-### H5. Rechazos y autorización
+### H5. Rechazos y autorización — **completado**
 Fondos insuficientes, origen igual a destino, importes inválidos, cuenta ajena.
 **Criterio:** Pruebas B y F. En B los saldos deben quedar **idénticos** a los previos, verificado por consulta directa.
+**Verificado:** 19 pruebas de seguridad organizadas por riesgo del OWASP API Top 10 2023. La transferencia rechazada se persiste con `status='rejected'` y cero asientos, de modo que queda en el historial sin tocar el saldo. Los importes inválidos (cero, negativos, decimales, fuera de rango, texto) se rechazan con 422 sin redondear nada en el servidor.
 
-### H6. Idempotencia
+### H6. Idempotencia — **completado**
 Tabla, reclamación con `ON CONFLICT DO NOTHING`, reproducción de respuesta, 409 para `in_progress`, 422 para huella distinta.
 **Criterio:** Prueba C (reintento secuencial, un solo asiento par) y prueba de dos peticiones **simultáneas** con la misma clave.
+**Verificado:** 10 pruebas, incluida la concurrente con dos hilos y dos conexiones reales, en la que exactamente una reclama la clave. También se cubre que el rechazo 422 por fondos es idempotente, que el orden de los campos del JSON no cambia la huella, y que la clave de un usuario no sirve a otro. Caso que apareció al implementar y que el diseño no había previsto: si el `INSERT` choca con una fila que otra transacción aún no ha confirmado, en READ COMMITTED el `SELECT` posterior no la ve; se trata como petición en curso (409), que es la semántica correcta.
 
 ### H7. Concurrencia
 Orden determinista de bloqueo. Estrategia `serializable` con reintento ante 40001.

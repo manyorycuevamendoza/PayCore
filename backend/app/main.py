@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
+from app.api.v1 import health
 from app.api.v1.router import api_router
 from app.platform.config import get_settings
 from app.platform.logging import configure_logging
@@ -50,8 +51,10 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
 
-    # Alias sin versionar para orquestadores y para el healthcheck de Compose.
-    app.include_router(api_router)
+    # Solo la sonda de salud se expone sin versionar, para el healthcheck de
+    # Compose y de los orquestadores. El resto de la API vive siempre bajo
+    # /api/v1, para que el inventario de endpoints sea explícito (API9:2023).
+    app.include_router(health.router, include_in_schema=False)
 
     return app
 

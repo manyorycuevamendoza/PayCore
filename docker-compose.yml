@@ -29,7 +29,7 @@ services:
       PAYCORE_ENVIRONMENT: ${PAYCORE_ENVIRONMENT:-development}
       PAYCORE_LOG_LEVEL: ${PAYCORE_LOG_LEVEL:-INFO}
       PAYCORE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-paycore}:${POSTGRES_PASSWORD:-paycore}@db:5432/${POSTGRES_DB:-paycore}
-      PAYCORE_JWT_SECRET: ${PAYCORE_JWT_SECRET:-dev-secret-no-usar-en-produccion}
+      PAYCORE_JWT_SECRET: ${PAYCORE_JWT_SECRET:-dev-secret-solo-para-desarrollo-no-usar-en-produccion}
       PAYCORE_CONCURRENCY_STRATEGY: ${PAYCORE_CONCURRENCY_STRATEGY:-pessimistic}
       PAYCORE_CORS_ORIGINS: '["http://localhost:5173"]'
     ports:
@@ -39,6 +39,7 @@ services:
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./backend:/srv
+      - ./scripts:/srv/scripts:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
       interval: 5s

@@ -53,13 +53,25 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    # RFC 7518, sección 3.2: con HS256 la clave debe tener al menos el tamaño
+    # de la salida de la función hash, 32 bytes. PyJWT avisa por debajo de eso.
+    MIN_SECRET_BYTES: int = 32
+
     @field_validator("jwt_secret")
     @classmethod
-    def _secret_required_outside_dev(cls, value: str, info) -> str:
+    def _secret_valido(cls, value: str, info) -> str:
         environment = info.data.get("environment", Environment.DEVELOPMENT)
-        if environment == Environment.PRODUCTION and not value:
+        if not value:
+            if environment == Environment.PRODUCTION:
+                raise ValueError(
+                    "PAYCORE_JWT_SECRET es obligatorio cuando "
+                    "PAYCORE_ENVIRONMENT=production"
+                )
+            return value
+        if len(value.encode("utf-8")) < 32:
             raise ValueError(
-                "PAYCORE_JWT_SECRET es obligatorio cuando PAYCORE_ENVIRONMENT=production"
+                "PAYCORE_JWT_SECRET debe tener al menos 32 bytes (RFC 7518, 3.2). "
+                'Genéralo con: python -c "import secrets; print(secrets.token_urlsafe(48))"'
             )
         return value
 

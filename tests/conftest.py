@@ -12,6 +12,7 @@ import subprocess
 import sys
 import uuid
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -96,7 +97,7 @@ def session(engine: Engine, limpiar: None) -> Iterator[Session]:
 
 
 def crear_usuario(conn, email: str | None = None, nombre: str = "Persona Ficticia") -> uuid.UUID:
-    email = email or f"{uuid.uuid4().hex[:12]}@ejemplo.test"
+    email = email or f"{uuid.uuid4().hex[:12]}@ejemplo.pe"
     return conn.execute(
         text(
             "INSERT INTO users (email, password_hash, full_name) "
@@ -163,3 +164,138 @@ def crear_asiento(
             "saldo": balance_after_cents,
         },
     ).scalar_one()
+
+
+# --- Cliente HTTP y ayudantes de alto nivel --------------------------------
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _apuntar_la_app_a_la_base_de_pruebas(engine: Engine) -> Iterator[None]:
+    """Hace que la aplicación use la misma base que las pruebas."""
+    os.environ["PAYCORE_DATABASE_URL"] = TEST_URL
+    os.environ.setdefault("PAYCORE_JWT_SECRET", "secreto-solo-para-pruebas-con-32-bytes-o-mas")
+
+    from app.platform import config, db
+
+    config.get_settings.cache_clear()
+    db.reset_engine()
+    yield
+    db.reset_engine()
+    config.get_settings.cache_clear()
+
+
+@pytest.fixture
+def cliente(limpiar: None):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    with TestClient(create_app()) as c:
+        yield c
+
+
+@dataclass
+class UsuarioDePrueba:
+    email: str
+    password: str
+    alias: str
+    full_name: str
+    user_id: uuid.UUID
+    token: str
+
+    @property
+    def auth(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}"}
+
+
+def registrar(
+    cliente, *, alias: str, nombre: str, password: str = "ContrasenaLarga123"
+) -> UsuarioDePrueba:
+    email = f"{alias}@ejemplo.pe"
+    alta = cliente.post(
+        "/api/v1/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "full_name": nombre,
+            "alias": alias,
+        },
+    )
+    assert alta.status_code == 201, alta.text
+
+    acceso = cliente.post(
+        "/api/v1/auth/login", json={"email": email, "password": password}
+    )
+    assert acceso.status_code == 200, acceso.text
+
+    return UsuarioDePrueba(
+        email=email,
+        password=password,
+        alias=alias,
+        full_name=nombre,
+        user_id=uuid.UUID(alta.json()["id"]),
+        token=acceso.json()["access_token"],
+    )
+
+
+def financiar(usuario: UsuarioDePrueba, cents: int) -> None:
+    """Acredita saldo ficticio desde SYSTEM_FUNDING.
+
+    Operación administrativa explícita y auditada: el dinero no aparece de la
+    nada, sale de una cuenta de sistema, de modo que la suma global de asientos
+    sigue siendo cero. Ver ADR-0004.
+    """
+    from app.modules.accounts import service as accounts_service
+    from app.modules.transfers import service as transfers_service
+    from app.platform.db import unit_of_work
+
+    with unit_of_work() as session:
+        cuenta = accounts_service.get_by_user(session, usuario.user_id)
+        transfers_service.fund_account(
+            session, destination=cuenta, amount_cents=cents
+        )
+
+
+def saldo_en_bd(engine: Engine, alias: str) -> int:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT balance_cents FROM accounts WHERE alias = :alias"),
+            {"alias": alias},
+        ).scalar_one()
+
+
+def asientos_de(engine: Engine, transfer_id: str | uuid.UUID) -> list[tuple[str, int]]:
+    with engine.connect() as conn:
+        return [
+            (alias, int(importe))
+            for alias, importe in conn.execute(
+                text(
+                    "SELECT a.alias, l.amount_cents FROM ledger_entries l "
+                    "JOIN accounts a ON a.id = l.account_id "
+                    "WHERE l.transfer_id = :t ORDER BY l.amount_cents"
+                ),
+                {"t": str(transfer_id)},
+            ).all()
+        ]
+
+
+def comprobar_reconciliacion(engine: Engine) -> None:
+    """El ledger cuadra y los saldos materializados coinciden con él.
+
+    Se comprueba sobre los datos, no sobre las respuestas HTTP.
+    """
+    with engine.connect() as conn:
+        suma_global = conn.execute(
+            text("SELECT coalesce(sum(amount_cents), 0) FROM ledger_entries")
+        ).scalar_one()
+        assert suma_global == 0, f"El ledger no cuadra: suma global {suma_global}"
+
+        descuadres = conn.execute(
+            text(
+                "SELECT a.alias, a.balance_cents, coalesce(sum(l.amount_cents), 0) "
+                "FROM accounts a LEFT JOIN ledger_entries l ON l.account_id = a.id "
+                "GROUP BY a.id, a.alias, a.balance_cents "
+                "HAVING a.balance_cents <> coalesce(sum(l.amount_cents), 0)"
+            )
+        ).all()
+        assert not descuadres, f"Saldos que no coinciden con el ledger: {descuadres}"

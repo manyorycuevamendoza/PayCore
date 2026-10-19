@@ -8,7 +8,9 @@ Motor transaccional para una billetera digital simulada, construido para demostr
 
 ## Estado actual
 
-El proyecto está en construcción. Fases 1, 2 y 3 completadas (investigación, justificación del stack y diseño). La Fase 4 está en curso: hitos H1 (esqueleto ejecutable) y H2 (esquema e invariantes en el motor) terminados y verificados, con 24 pruebas en verde.
+El proyecto está en construcción. Fases 1, 2 y 3 completadas (investigación, justificación del stack y diseño). La Fase 4 está en curso: hitos H1 a H6 terminados y verificados, con **76 pruebas en verde**.
+
+Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, idempotencia persistente e historial de movimientos. De las pruebas del enunciado están hechas la A (transferencia correcta), la B (fondos insuficientes), la C (solicitud duplicada) y la F (seguridad). Faltan la D (concurrencia) y la E (fallos).
 
 ### Levantarlo
 
@@ -26,6 +28,14 @@ python -m venv .venv && ./.venv/bin/pip install -r backend/requirements-dev.txt
 ```
 
 Las pruebas corren contra un PostgreSQL real, no contra SQLite: lo que se verifica son garantías del motor (restricciones `CHECK`, triggers, bloqueos y niveles de aislamiento) que otro motor no reproduce. Requieren el contenedor levantado.
+
+### Datos ficticios de prueba
+
+```bash
+./scripts/seed.sh
+```
+
+Crea tres personas (`ana`, `luis`, `rosa`) con saldo simulado y contraseña `PayCoreDemo2026`. El saldo no aparece de la nada: se acredita desde una cuenta de sistema que queda en negativo, de modo que el libro mayor sigue sumando exactamente cero. Para vaciar los datos sin tocar el esquema, `./scripts/reset-data.sh`.
 
 Este README se reescribirá en la Fase 9 con funcionalidades implementadas, capturas reales, comandos verificados y resultados medidos. Mientras tanto, la documentación útil es:
 

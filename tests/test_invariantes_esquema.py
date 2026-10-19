@@ -249,11 +249,11 @@ def test_el_correo_es_unico_sin_distinguir_mayusculas(
 ) -> None:
     """CITEXT: la unicidad no depende de que la aplicación normalice."""
     with engine.begin() as conn:
-        crear_usuario(conn, email="Ana.Perez@Ejemplo.Test")
+        crear_usuario(conn, email="Ana.Perez@Ejemplo.Pe")
 
     with pytest.raises(IntegrityError):
         with engine.begin() as conn:
-            crear_usuario(conn, email="ana.perez@ejemplo.test")
+            crear_usuario(conn, email="ana.perez@ejemplo.pe")
 
 
 def test_solo_se_admite_la_moneda_pen_simulada(engine: Engine, limpiar: None) -> None:
