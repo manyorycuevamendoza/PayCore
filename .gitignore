@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Entorno y secretos
+.env
+.env.local
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.toc
+*.synctex.gz
+
+# Sistema
+.DS_Store
+*.swp
+
+# Datos locales
+pgdata/
