@@ -1,0 +1,50 @@
+name: paycore
+
+services:
+  db:
+    image: postgres:16.10-alpine
+    container_name: paycore-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-paycore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paycore}
+      POSTGRES_DB: ${POSTGRES_DB:-paycore}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-paycore} -d ${POSTGRES_DB:-paycore}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+    container_name: paycore-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PAYCORE_ENVIRONMENT: ${PAYCORE_ENVIRONMENT:-development}
+      PAYCORE_LOG_LEVEL: ${PAYCORE_LOG_LEVEL:-INFO}
+      PAYCORE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-paycore}:${POSTGRES_PASSWORD:-paycore}@db:5432/${POSTGRES_DB:-paycore}
+      PAYCORE_JWT_SECRET: ${PAYCORE_JWT_SECRET:-dev-secret-no-usar-en-produccion}
+      PAYCORE_CONCURRENCY_STRATEGY: ${PAYCORE_CONCURRENCY_STRATEGY:-pessimistic}
+      PAYCORE_CORS_ORIGINS: '["http://localhost:5173"]'
+    ports:
+      - "${API_PORT:-8000}:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend:/srv
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  pgdata:

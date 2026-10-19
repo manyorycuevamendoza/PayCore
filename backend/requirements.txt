@@ -1,0 +1,11 @@
+# Versiones fijadas tras resolución real con pip el 2026-10-18 (Python 3.12.3)
+fastapi==0.146.0
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.5
+alembic==1.20.0
+psycopg[binary]==3.3.6
+pydantic==2.14.1
+pydantic-settings==2.16.0
+argon2-cffi==25.1.0
+pyjwt==2.15.1
+python-multipart==0.0.32
