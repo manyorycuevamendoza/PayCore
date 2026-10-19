@@ -1,0 +1,602 @@
+/*
+ * PayCore. Hoja de estilos única, sin framework.
+ *
+ * Paleta deliberadamente neutra (pizarra y verde azulado). No se imita la
+ * identidad visual de ninguna marca comercial.
+ *
+ * Prioridades: legibilidad, contraste suficiente, foco visible y que todo
+ * funcione en una pantalla de móvil. Nada de animación decorativa.
+ */
+
+:root {
+  --fondo: #f4f6f8;
+  --superficie: #ffffff;
+  --superficie-2: #eef1f4;
+  --borde: #d3dae0;
+  --texto: #15232e;
+  --texto-tenue: #5a6b78;
+  --acento: #0f6d63;
+  --acento-fuerte: #0b544c;
+  --acento-suave: #e2f1ef;
+  --error: #9c2a2a;
+  --error-suave: #fbeaea;
+  --exito: #1d6b3f;
+  --exito-suave: #e6f4ec;
+  --info: #1f5577;
+  --info-suave: #e7f0f6;
+  --aviso-prototipo: #8a5a00;
+  --aviso-prototipo-fondo: #fdf4e0;
+  --radio: 12px;
+  --sombra: 0 1px 2px rgb(21 35 46 / 0.06), 0 4px 16px rgb(21 35 46 / 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #10171d;
+    --superficie: #18222a;
+    --superficie-2: #1f2b34;
+    --borde: #2d3c47;
+    --texto: #e7edf1;
+    --texto-tenue: #9aacb8;
+    --acento: #4cc5b5;
+    --acento-fuerte: #6ad6c7;
+    --acento-suave: #12332f;
+    --error: #ff9a9a;
+    --error-suave: #351c1c;
+    --exito: #7fd3a1;
+    --exito-suave: #16301f;
+    --info: #92c4e6;
+    --info-suave: #152c3a;
+    --aviso-prototipo: #f0c86a;
+    --aviso-prototipo-fondo: #2e2616;
+    --sombra: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--acento);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.monoespacio {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+/* --- Franja de prototipo. Siempre visible, nunca descartable. --- */
+
+.franja-prototipo {
+  background: var(--aviso-prototipo-fondo);
+  color: var(--aviso-prototipo);
+  border-bottom: 1px solid color-mix(in srgb, var(--aviso-prototipo) 35%, transparent);
+  padding: 0.6rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+/* --- Marca --- */
+
+.marca {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--acento);
+  margin: 0;
+}
+
+.marca--pequena {
+  font-size: 1.125rem;
+}
+
+/* --- Acceso --- */
+
+.acceso {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.tarjeta--acceso {
+  width: 100%;
+  max-width: 26rem;
+}
+
+.acceso__cabecera {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.acceso__lema {
+  margin: 0.25rem 0 0;
+  color: var(--texto-tenue);
+  font-size: 0.9375rem;
+}
+
+.pestanas {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--superficie-2);
+  border-radius: var(--radio);
+  padding: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.pestana {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--texto-tenue);
+  padding: 0.55rem 0.5rem;
+  border-radius: calc(var(--radio) - 4px);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.pestana--activa {
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: 0 1px 2px rgb(21 35 46 / 0.08);
+}
+
+/* --- Tarjetas --- */
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 1.25rem;
+}
+
+.tarjeta__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tarjeta--saldo {
+  background: linear-gradient(
+    135deg,
+    var(--acento) 0%,
+    var(--acento-fuerte) 100%
+  );
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.tarjeta--saldo__etiqueta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.saldo {
+  font-size: clamp(2rem, 7vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0.35rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarjeta--saldo__nota {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  opacity: 0.9;
+}
+
+.etiqueta {
+  background: var(--superficie-2);
+  color: var(--texto-tenue);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Panel --- */
+
+.barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borde);
+}
+
+.barra__derecha {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.barra__usuario {
+  font-size: 0.875rem;
+  color: var(--texto-tenue);
+}
+
+.panel__contenido {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.columnas {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 52rem) {
+  .columnas {
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* --- Formularios --- */
+
+.campo {
+  margin-bottom: 0.9rem;
+}
+
+.campo label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 550;
+  margin-bottom: 0.3rem;
+}
+
+.campo__opcional {
+  font-weight: 400;
+  color: var(--texto-tenue);
+}
+
+.campo input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+}
+
+.campo input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+.campo__prefijado {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding-left: 0.7rem;
+  background: var(--superficie);
+}
+
+.campo__prefijado span {
+  color: var(--texto-tenue);
+  font-weight: 600;
+}
+
+.campo__prefijado input {
+  border: 0;
+  padding-left: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.campo__prefijado:focus-within {
+  outline: 3px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.campo__prefijado input:focus-visible {
+  outline: none;
+}
+
+.campo__ayuda,
+.campo__error {
+  margin: 0.3rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.campo__ayuda {
+  color: var(--texto-tenue);
+}
+
+.campo__error {
+  color: var(--error);
+}
+
+/* --- Botones --- */
+
+.boton {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.boton--principal {
+  width: 100%;
+  background: var(--acento);
+  color: #ffffff;
+  margin-top: 0.25rem;
+}
+
+.boton--principal:hover:not(:disabled) {
+  background: var(--acento-fuerte);
+}
+
+.boton--secundario {
+  width: 100%;
+  background: var(--superficie-2);
+  color: var(--texto);
+  border-color: var(--borde);
+  margin-top: 0.75rem;
+}
+
+.boton--texto {
+  background: transparent;
+  color: var(--acento);
+  padding: 0.25rem 0.4rem;
+  text-decoration: underline;
+}
+
+.boton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  /*
+   * En modo oscuro el acento es un verde azulado CLARO, así que el texto
+   * blanco sobre él no tiene contraste suficiente. Se invierte: tinta oscura
+   * sobre el acento. Contraste comprobado por encima de 4.5:1.
+   */
+  .boton--principal,
+  .tarjeta--saldo {
+    color: #06211e;
+  }
+}
+
+/* --- Avisos --- */
+
+.aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.9375rem;
+  margin: 0.75rem 0;
+}
+
+.aviso__titulo {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.aviso__cuerpo {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.aviso__cerrar {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+
+.aviso--error {
+  background: var(--error-suave);
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+}
+
+.aviso--exito {
+  background: var(--exito-suave);
+  color: var(--exito);
+  border-color: color-mix(in srgb, var(--exito) 30%, transparent);
+}
+
+.aviso--informacion {
+  background: var(--info-suave);
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+}
+
+/* --- Movimientos --- */
+
+.movimientos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.movimiento {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.25rem;
+  border-bottom: 1px solid var(--borde);
+}
+
+.movimiento:last-child {
+  border-bottom: 0;
+}
+
+.movimiento__icono {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 700;
+  background: var(--superficie-2);
+  color: var(--texto-tenue);
+}
+
+.movimiento--in .movimiento__icono {
+  background: var(--exito-suave);
+  color: var(--exito);
+}
+
+.movimiento--out .movimiento__icono {
+  background: var(--acento-suave);
+  color: var(--acento);
+}
+
+.movimiento__detalle {
+  display: grid;
+  min-width: 0;
+}
+
+.movimiento__contraparte {
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movimiento__fecha {
+  font-size: 0.8125rem;
+  color: var(--texto-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movimiento__cifras {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.movimiento__importe {
+  font-weight: 650;
+}
+
+.movimiento--in .movimiento__importe {
+  color: var(--exito);
+}
+
+.movimiento__saldo {
+  font-size: 0.75rem;
+  color: var(--texto-tenue);
+}
+
+.vacio {
+  color: var(--texto-tenue);
+  font-size: 0.9375rem;
+  margin: 0.5rem 0;
+}
+
+/* --- Estados de carga --- */
+
+.cargando {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cargando__rueda {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: girar 0.7s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.esqueleto {
+  display: inline-block;
+  height: 1em;
+  border-radius: 4px;
+  background: var(--superficie-2);
+  animation: latir 1.4s ease-in-out infinite;
+}
+
+@keyframes latir {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Respeta a quien pide menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .cargando__rueda,
+  .esqueleto {
+    animation: none;
+  }
+}
+
+/* --- Pie --- */
+
+.pie {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+}
+
+.pie .aviso {
+  font-size: 0.8125rem;
+}

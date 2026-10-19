@@ -8,7 +8,7 @@ Motor transaccional para una billetera digital simulada, construido para demostr
 
 ## Estado actual
 
-El proyecto está en construcción. **Backend terminado** (Fases 1 a 4, hitos H1 a H9) con **96 pruebas en verde**. Faltan el frontend, las pruebas de carga y el informe técnico.
+El proyecto está en construcción. **Backend e interfaz web terminados** (hitos H1 a H10) con **96 pruebas en verde**. Faltan las pruebas de carga con Locust y el informe técnico en LaTeX.
 
 Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, control de concurrencia con dos estrategias comparables, idempotencia persistente, historial de movimientos y limitación de peticiones.
 
@@ -32,15 +32,36 @@ Están declaradas por escrito en lugar de presentarse como lo que no son:
 - **Un solo nodo de base de datos.** Sin alta disponibilidad ni replicación.
 - **El rate limiting cuenta en memoria del proceso.** Con varios workers el límite efectivo se multiplica por el número de procesos. Ver [ADR-0009](docs/decisions/0009-rate-limiting.md).
 - **JWT sin revocación inmediata.** Un token robado vale hasta que caduca; se mitiga con vida corta de 15 minutos.
+- **El token se guarda en `sessionStorage`.** Se borra al cerrar la pestaña, pero cualquier XSS podría leerlo. La respuesta correcta en producción es una cookie `httpOnly` con protección CSRF, que exige que API y frontend compartan origen.
 - **Docker Compose no es un despliegue de producción.**
+
+## Capturas
+
+Generadas con `node scripts/capturas.mjs`, que recorre la aplicación de verdad e inicia sesión. No son maquetas.
+
+| Panel principal | Transferencia completada |
+|---|---|
+| ![Panel con saldo e historial](docs/capturas/02-panel-light.png) | ![Confirmación de transferencia](docs/capturas/03-transferencia-completada-light.png) |
+
+| Fondos insuficientes | Acceso |
+|---|---|
+| ![Rechazo por fondos insuficientes](docs/capturas/04-fondos-insuficientes-light.png) | ![Pantalla de acceso](docs/capturas/01-acceso-light.png) |
+
+La interfaz se adapta al tema del sistema y a pantallas pequeñas:
+
+| Tema oscuro | Móvil |
+|---|---|
+| ![Panel en tema oscuro](docs/capturas/02-panel-dark.png) | <img src="docs/capturas/05-movil.png" alt="Panel en pantalla de móvil" width="260"> |
+
+## Cómo ejecutarlo
 
 ### Levantarlo
 
 ```bash
-./scripts/dev-up.sh
+./scripts/dev-up.sh && docker compose up -d web
 ```
 
-Deja la API en `http://localhost:8000`, la documentación interactiva en `http://localhost:8000/api/v1/docs` y PostgreSQL en el puerto 5434 del host. Para detenerlo, `./scripts/dev-down.sh` (añade `--purge` para borrar también los datos).
+Deja la interfaz en `http://localhost:5173`, la API en `http://localhost:8000`, la documentación interactiva en `http://localhost:8000/api/v1/docs` y PostgreSQL en el puerto 5434 del host. Para detenerlo, `./scripts/dev-down.sh` (añade `--purge` para borrar también los datos).
 
 ### Pruebas
 
@@ -58,6 +79,16 @@ Las pruebas corren contra un PostgreSQL real, no contra SQLite: lo que se verifi
 ```
 
 Crea tres personas (`ana`, `luis`, `rosa`) con saldo simulado y contraseña `PayCoreDemo2026`. El saldo no aparece de la nada: se acredita desde una cuenta de sistema que queda en negativo, de modo que el libro mayor sigue sumando exactamente cero. Para vaciar los datos sin tocar el esquema, `./scripts/reset-data.sh`.
+
+### Interfaz web
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+React 19 con Vite y TypeScript en modo estricto, sin librería de componentes ni de estado: para una pantalla de acceso y un panel, añadirlas no se paga. Se adapta al tema claro u oscuro del sistema y a pantallas de móvil.
+
+Un detalle que importa: el importe se escribe en soles y se convierte a céntimos **sin `parseFloat`**. `parseFloat("30.10") * 100` da `3009.9999999999995`, y redondear funciona casi siempre, que en dinero no basta. El cliente separa la cadena por el punto decimal y opera con enteros, igual que el backend.
 
 Este README se reescribirá en la Fase 9 con funcionalidades implementadas, capturas reales, comandos verificados y resultados medidos. Mientras tanto, la documentación útil es:
 

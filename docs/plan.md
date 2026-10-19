@@ -10,7 +10,7 @@ Estado al 18 de octubre de 2026.
 | 2. Justificación del stack | [docs/stack.md](stack.md), 8 ADRs en [docs/decisions/](decisions/) | **Completada** |
 | 3. Diseño funcional | [docs/architecture.md](architecture.md) | **Completada** (diseño propuesto, sin código) |
 | 4. Backend | API FastAPI, migraciones, invariantes | **Completada** (H1 a H9) |
-| 5. Interfaz web | React + Vite | Pendiente |
+| 5. Interfaz web | React + Vite | **Completada** |
 | 6. Pruebas A-F | Suite pytest | **Completada**: A, B, C, D, E y F hechas y verificadas. 86 pruebas |
 | 7. Rendimiento | Locust, CSV y gráficos reales | Pendiente |
 | 8. Informe LaTeX | `docs/latex/main.tex` + PDF | Pendiente |
@@ -65,9 +65,10 @@ Límite por usuario e IP en login y transferencias, formato uniforme de error, `
 **Criterio:** prueba que satura el límite y espera 429. Prueba que afirma que ninguna respuesta de error contiene traza.
 **Verificado:** 10 pruebas más, 96 en total. Cubo de fichas sin dependencias externas, clave por origen en el login y por usuario en la transferencia, con `Retry-After`. Se añadió un tope de 16 KiB de cuerpo (413) que no estaba en el plan. Comprobado también contra el stack real: el sexto intento de login devuelve 429 con `retry-after: 6`. Decisión y su limitación en [ADR-0009](decisions/0009-rate-limiting.md).
 
-### H10. Frontend
+### H10. Frontend — **completado**
 Login, panel, saldo, formulario de transferencia, confirmación, historial, estados de error y de carga, aviso de prototipo educativo con fondos simulados.
 **Criterio:** recorrido manual completo con capturas reales que se usarán en el README y en el informe.
+**Verificado:** recorrido hecho en el navegador contra el stack real (acceso, transferencia de S/12.50, rechazo por fondos insuficientes, historial) y capturas generadas por script reproducible en `scripts/capturas.mjs`. React 19 + Vite + TypeScript estricto, sin librería de componentes ni de estado. Se encontró y corrigió un fallo de contraste: en tema oscuro la tarjeta de saldo ponía texto blanco sobre verde claro, 2,11:1, por debajo del 4,5:1 que pide WCAG AA; ahora es 8,01:1 con tinta oscura. El importe se convierte a céntimos sin `parseFloat`. El job de frontend (tipos y compilación) se añadió al CI.
 
 ### H11. Rendimiento
 Escenarios Locust, ejecución de las dos estrategias de concurrencia bajo carga equivalente, CSV crudos versionados, gráficos generados por script a partir de esos CSV, y reconciliación en base de datos después de cada ejecución.
