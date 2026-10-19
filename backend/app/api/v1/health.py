@@ -5,10 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.platform.config import Settings, get_settings
-from app.platform.db import get_db_session
+from app.platform.db import read_session
 
 router = APIRouter(tags=["salud"])
 
@@ -21,12 +20,10 @@ class HealthResponse(BaseModel):
 
 
 @router.get("/health", response_model=HealthResponse, summary="Estado del servicio")
-def health(
-    session: Session = Depends(get_db_session),
-    settings: Settings = Depends(get_settings),
-) -> HealthResponse:
+def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     try:
-        session.execute(text("SELECT 1"))
+        with read_session() as session:
+            session.execute(text("SELECT 1"))
         database = "ok"
     except Exception:  # noqa: BLE001 - la sonda no debe propagar el fallo
         database = "unreachable"

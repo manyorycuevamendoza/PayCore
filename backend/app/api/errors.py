@@ -11,6 +11,7 @@ import logging
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.platform.errors import PayCoreError
@@ -66,6 +67,24 @@ def register_exception_handlers(app: FastAPI) -> None:
                 codigos.get(exc.status_code, "http_error"), str(exc.detail)
             ),
             headers=getattr(exc, "headers", None),
+        )
+
+    @app.exception_handler(SQLAlchemyTimeoutError)
+    async def _pool_agotado(_: Request, exc: SQLAlchemyTimeoutError) -> JSONResponse:
+        """El pool de conexiones no tenía ninguna libre a tiempo.
+
+        Es saturación, no un error de programación, así que se responde 503 con
+        Retry-After en lugar de un 500 opaco. Se registra en ERROR porque, si
+        ocurre, el dimensionamiento del pool hay que revisarlo.
+        """
+        logger.error("pool_de_conexiones_agotado", exc_info=exc)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=error_body(
+                "service_overloaded",
+                "El servicio está saturado. Vuelve a intentarlo en unos segundos.",
+            ),
+            headers={"Retry-After": "2"},
         )
 
     @app.exception_handler(Exception)

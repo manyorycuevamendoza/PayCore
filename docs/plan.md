@@ -12,7 +12,7 @@ Estado al 18 de octubre de 2026.
 | 4. Backend | API FastAPI, migraciones, invariantes | **Completada** (H1 a H9) |
 | 5. Interfaz web | React + Vite | **Completada** |
 | 6. Pruebas A-F | Suite pytest | **Completada**: A, B, C, D, E y F hechas y verificadas. 86 pruebas |
-| 7. Rendimiento | Locust, CSV y gráficos reales | Pendiente |
+| 7. Rendimiento | Locust, CSV y gráficos reales | **Completada** |
 | 8. Informe LaTeX | `docs/latex/main.tex` + PDF | Pendiente |
 | 9. README | `README.md` con capturas reales | Pendiente |
 | 10. Preparación de entrevista | `docs/interview-preparation.md` | Pendiente |
@@ -70,9 +70,12 @@ Login, panel, saldo, formulario de transferencia, confirmación, historial, esta
 **Criterio:** recorrido manual completo con capturas reales que se usarán en el README y en el informe.
 **Verificado:** recorrido hecho en el navegador contra el stack real (acceso, transferencia de S/12.50, rechazo por fondos insuficientes, historial) y capturas generadas por script reproducible en `scripts/capturas.mjs`. React 19 + Vite + TypeScript estricto, sin librería de componentes ni de estado. Se encontró y corrigió un fallo de contraste: en tema oscuro la tarjeta de saldo ponía texto blanco sobre verde claro, 2,11:1, por debajo del 4,5:1 que pide WCAG AA; ahora es 8,01:1 con tinta oscura. El importe se convierte a céntimos sin `parseFloat`. El job de frontend (tipos y compilación) se añadió al CI.
 
-### H11. Rendimiento
+### H11. Rendimiento — **completado**
 Escenarios Locust, ejecución de las dos estrategias de concurrencia bajo carga equivalente, CSV crudos versionados, gráficos generados por script a partir de esos CSV, y reconciliación en base de datos después de cada ejecución.
 **Criterio:** tabla con RPS, transferencias confirmadas por segundo, p50, p95, p99, errores por segundo y tasa de fallo, con la máquina y las versiones documentadas. Ningún número que no provenga de un CSV del repositorio.
+**Verificado:** sí. Informe en [docs/performance.md](performance.md). Tres escenarios (solo lectura, contención baja, contención máxima) por dos estrategias, con la API en cuatro workers para que haya concurrencia real entre procesos. Resultado principal: bajo contención máxima las dos estrategias son igual de correctas (ledger a cero, cero descuadres, cero saldos negativos), pero `pessimistic` confirma 148,3 transferencias por segundo frente a 10,4 de `serializable`, que pierde el 83,7 % de las peticiones por reintentos agotados. Esa diferencia **solo se ve contando filas en PostgreSQL**: en peticiones por segundo la brecha parecía de apenas un 57 %.
+**Hallazgo adicional:** la carga destapó un fallo de configuración real. La sesión de base de datos se obtenía como dependencia de FastAPI, lo que retenía la conexión fuera del hilo que la usaba y agotaba el pool. Acotarla al cuerpo del endpoint multiplicó por 7,4 el rendimiento de lectura y bajó la cola de 30 s a 1,1 s, con medición pareada antes y después.
+**Medición descartada:** la primera comparación antes/después no era válida porque la carrera del «antes» se cortó a los 34 s (el `locustfile` abortaba la ejecución al fallar un login). Se detectó al revisar las marcas de tiempo, se corrigió el generador y se repitió. Queda documentado en la sección 5.4 del informe.
 
 ### H12. Documentación e informe
 Informe LaTeX compilable, README, preparación de entrevista, workflow de CI con PostgreSQL como servicio, `.env.example`, script de inicialización, datos ficticios e instrucciones de limpieza.

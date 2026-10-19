@@ -1,3 +1,7 @@
 -r requirements.txt
 pytest==9.1.1
 httpx==0.28.1
+
+# Medición de rendimiento (Fase 7). Ver docs/performance.md
+locust==2.46.7
+matplotlib==3.11.2

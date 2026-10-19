@@ -1,0 +1,8 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+GET,GET /accounts/me/balance,RemoteDisconnected('Remote end closed connection without response'),4,2026-10-19T04:54:58Z,2026-10-19T04:54:58Z
+GET,GET /accounts/me/transactions,HTTPError('401 Client Error: Unauthorized for url: GET /accounts/me/transactions'),5,2026-10-19T04:54:58Z,2026-10-19T04:54:59Z
+GET,GET /accounts/me/balance,HTTPError('401 Client Error: Unauthorized for url: GET /accounts/me/balance'),4,2026-10-19T04:54:58Z,2026-10-19T04:54:59Z
+GET,GET /accounts/me/transactions,HTTPError('500 Server Error: Internal Server Error for url: GET /accounts/me/transactions'),6,2026-10-19T04:54:58Z,2026-10-19T04:54:58Z
+GET,GET /accounts/me/balance,HTTPError('500 Server Error: Internal Server Error for url: GET /accounts/me/balance'),2,2026-10-19T04:54:57Z,2026-10-19T04:54:58Z
+POST,POST /auth/login,HTTPError('500 Server Error: Internal Server Error for url: POST /auth/login'),3,2026-10-19T04:54:58Z,2026-10-19T04:54:58Z
+GET,GET /accounts/me/transactions,RemoteDisconnected('Remote end closed connection without response'),2,2026-10-19T04:54:57Z,2026-10-19T04:54:58Z

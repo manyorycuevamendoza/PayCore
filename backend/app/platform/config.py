@@ -40,7 +40,15 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://paycore:paycore@localhost:5432/paycore"
     db_pool_size: int = 10
     db_max_overflow: int = 20
+    # Si el pool se agota, es mejor fallar rápido con un 503 que dejar al
+    # cliente colgado 30 segundos (el valor por defecto de SQLAlchemy).
+    db_pool_timeout: int = 5
     db_echo: bool = False
+
+    @property
+    def db_max_connections(self) -> int:
+        """Conexiones que este proceso puede llegar a tener abiertas."""
+        return self.db_pool_size + self.db_max_overflow
 
     jwt_secret: str = ""
     jwt_algorithm: str = "HS256"

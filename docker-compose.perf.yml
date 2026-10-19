@@ -1,0 +1,35 @@
+# Superposición para las mediciones de rendimiento.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.perf.yml up -d api
+#
+# Diferencias respecto al entorno de desarrollo, todas deliberadas y
+# declaradas en docs/performance.md:
+#
+# - Sin --reload y sin montar el código: el observador de ficheros y la
+#   recarga introducen ruido que no existiría en un despliegue real.
+# - Cuatro workers de Uvicorn: así hay concurrencia REAL entre procesos contra
+#   PostgreSQL, que es justo lo que el proyecto afirma garantizar. Con un solo
+#   proceso la medición sería más amable y menos honesta.
+# - Rate limiting apagado: si estuviera activo mediríamos el limitador y no el
+#   motor transaccional. Su contador además es por proceso (ADR-0009), así que
+#   con cuatro workers ni siquiera sería coherente.
+# - Nivel de log WARNING: escribir una línea JSON por petición a stdout
+#   distorsiona la latencia bajo carga.
+
+services:
+  api:
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000
+             --workers 4 --log-level warning --no-access-log"
+    environment:
+      PAYCORE_RATE_LIMIT_ENABLED: "false"
+      PAYCORE_LOG_LEVEL: WARNING
+      # 4 workers x (10 + 10) = 80 conexiones como mucho, por debajo del
+      # max_connections de PostgreSQL. El lifespan de la aplicación limita el
+      # grupo de hilos a esas mismas 20 por proceso, de modo que el exceso de
+      # peticiones espera en una cola barata y no compite por conexiones.
+      PAYCORE_DB_POOL_SIZE: 10
+      PAYCORE_DB_MAX_OVERFLOW: 10
+      PAYCORE_DB_POOL_TIMEOUT: 5
+    volumes: []

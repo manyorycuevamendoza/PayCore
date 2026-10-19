@@ -52,6 +52,7 @@ def get_engine() -> Engine:
             settings.database_url,
             pool_size=settings.db_pool_size,
             max_overflow=settings.db_max_overflow,
+            pool_timeout=settings.db_pool_timeout,
             pool_pre_ping=True,
             echo=settings.db_echo,
             future=True,
@@ -155,8 +156,23 @@ def transactional(
     raise ConcurrencyRetryExhaustedError()
 
 
-def get_db_session() -> Iterator[Session]:
-    """Dependencia de FastAPI para endpoints de solo lectura."""
+@contextmanager
+def read_session() -> Iterator[Session]:
+    """Sesión de solo lectura, acotada al cuerpo del endpoint.
+
+    Deliberadamente NO es una dependencia de FastAPI. Como dependencia, la
+    sesión se abre antes de entrar en la función y se cierra después de salir,
+    por lo que la conexión queda retenida en tramos en los que la petición no
+    ocupa ningún hilo del grupo de AnyIO. El resultado es que el número de
+    conexiones en uso puede superar al de hilos activos, y el pool se agota
+    aunque el límite de hilos esté bien puesto.
+
+    Esto se midió: con la sesión como dependencia, la carga de solo lectura
+    daba un 37 % de fallos por agotamiento del pool. Al acotarla al cuerpo del
+    endpoint, cada conexión vive exactamente lo que vive su hilo, y el límite
+    de concurrencia que fija el lifespan pasa a ser real. Ver
+    docs/performance.md.
+    """
     session = get_session_factory()()
     try:
         yield session

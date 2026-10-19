@@ -22,7 +22,7 @@ from app.modules.idempotency import service as idempotency_service
 from app.modules.idempotency.service import Outcome
 from app.modules.transfers import service as transfers_service
 from app.modules.transfers.models import REASON_INSUFFICIENT_FUNDS
-from app.platform.db import get_db_session, transactional
+from app.platform.db import read_session, transactional
 from app.platform.errors import (
     IdempotencyKeyInProgressError,
     IdempotencyKeyRequiredError,
@@ -173,25 +173,24 @@ def create_transfer(
     responses={404: {"description": "La operación no existe o no participas en ella"}},
 )
 def get_transfer(
-    transfer_id: uuid.UUID,
-    user_id: CurrentUserId,
-    session: Session = Depends(get_db_session),
+    transfer_id: uuid.UUID, user_id: CurrentUserId
 ) -> TransferResponse:
-    cuenta = accounts_service.get_by_user(session, user_id)
-    transferencia = transfers_service.get_for_account(
-        session, transfer_id=transfer_id, account_id=cuenta.id
-    )
-    origen = session.get(type(cuenta), transferencia.source_account_id)
-    destino = session.get(type(cuenta), transferencia.destination_account_id)
-    return TransferResponse(
-        id=transferencia.id,
-        status=transferencia.status,
-        amount_cents=transferencia.amount_cents,
-        amount_display=cents_to_display(transferencia.amount_cents),
-        source_alias=origen.alias if origen else "",
-        destination_alias=destino.alias if destino else "",
-        concept=transferencia.concept,
-        created_at=transferencia.created_at,
-        completed_at=transferencia.completed_at,
-        rejection_reason=transferencia.rejection_reason,
-    )
+    with read_session() as session:
+        cuenta = accounts_service.get_by_user(session, user_id)
+        transferencia = transfers_service.get_for_account(
+            session, transfer_id=transfer_id, account_id=cuenta.id
+        )
+        origen = session.get(type(cuenta), transferencia.source_account_id)
+        destino = session.get(type(cuenta), transferencia.destination_account_id)
+        return TransferResponse(
+            id=transferencia.id,
+            status=transferencia.status,
+            amount_cents=transferencia.amount_cents,
+            amount_display=cents_to_display(transferencia.amount_cents),
+            source_alias=origen.alias if origen else "",
+            destination_alias=destino.alias if destino else "",
+            concept=transferencia.concept,
+            created_at=transferencia.created_at,
+            completed_at=transferencia.completed_at,
+            rejection_reason=transferencia.rejection_reason,
+        )

@@ -8,7 +8,7 @@ Motor transaccional para una billetera digital simulada, construido para demostr
 
 ## Estado actual
 
-El proyecto está en construcción. **Backend e interfaz web terminados** (hitos H1 a H10) con **96 pruebas en verde**. Faltan las pruebas de carga con Locust y el informe técnico en LaTeX.
+El proyecto está en construcción. **Backend, interfaz web y mediciones de rendimiento terminados** (hitos H1 a H11) con **96 pruebas en verde**. Falta el informe técnico en LaTeX y la preparación de entrevista.
 
 Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, control de concurrencia con dos estrategias comparables, idempotencia persistente, historial de movimientos y limitación de peticiones.
 
@@ -23,7 +23,30 @@ Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y
 | E | Fallos antes y después del commit, y caída del proceso de base de datos | Atomicidad e idempotencia verificadas |
 | F | Operar sobre cuentas ajenas e importes inválidos | 19 pruebas por riesgo del OWASP API Top 10 2023 |
 
-Falta el frontend en React, las pruebas de carga con Locust y el informe en LaTeX.
+Falta el informe técnico en LaTeX.
+
+## Resultados medidos
+
+Informe completo en [docs/performance.md](docs/performance.md). Todas las cifras salen de CSV reales versionados en [performance/results/](performance/results/); los gráficos los genera un script a partir de esos mismos CSV.
+
+100 usuarios durante 60 s contra la API en cuatro procesos, con PostgreSQL 16 en contenedor:
+
+| Escenario | Estrategia | req/s | Transferencias confirmadas/s | p99 | Fallos |
+|---|---|---:|---:|---:|---:|
+| Contención máxima | `pessimistic` | 147,0 | **148,3** | 1 100 ms | 0,00 % |
+| Contención máxima | `serializable` | 63,1 | **10,4** | 2 200 ms | 83,72 % |
+| Contención baja | `pessimistic` | 83,8 | 84,5 | 990 ms | 0,00 % |
+| Contención baja | `serializable` | 60,0 | 43,3 | 1 400 ms | 27,35 % |
+
+![Comparación de estrategias de concurrencia](docs/diagrams/rendimiento-estrategias.png)
+
+Las dos estrategias son **igual de correctas**: en las cuatro carreras el libro mayor sumó exactamente cero, ninguna cuenta quedó descuadrada y ningún saldo fue negativo. Se diferencian en cuánto trabajo terminan.
+
+La columna que importa es la de **transferencias confirmadas por segundo**, que se obtiene contando filas en PostgreSQL al acabar cada carrera y no de lo que respondió la API. Mirando solo las peticiones por segundo, `serializable` parecía un 57 % más lento; contando el dinero realmente movido, hace un 93 % menos de trabajo útil.
+
+La carga también destapó un fallo real: la sesión de base de datos se obtenía como dependencia de FastAPI, lo que retenía la conexión fuera del hilo que la usaba y agotaba el pool. Acotarla al cuerpo del endpoint multiplicó por 7,4 el rendimiento de lectura y bajó el peor caso de 30 s a 1,1 s.
+
+![Antes y después de la optimización](docs/diagrams/rendimiento-optimizacion.png)
 
 ### Limitaciones conocidas
 

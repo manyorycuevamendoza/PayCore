@@ -1,0 +1,5 @@
+ suma_global | cuentas_descuadradas | saldos_negativos | completadas | rechazadas | total_asientos 
+-------------+----------------------+------------------+-------------+------------+----------------
+           0 |                    0 |                0 |          51 |          0 |            102
+(1 row)
+

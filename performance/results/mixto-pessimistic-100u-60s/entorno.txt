@@ -1,0 +1,12 @@
+fecha=2026-10-18T20:58:05-05:00
+escenario=mixto
+estrategia=pessimistic
+usuarios=100
+segundos=60
+cpu=AMD Ryzen 7 5800H with Radeon Graphics
+nucleos=16
+ram=15Gi
+kernel=7.0.0-34-generic
+api_workers=4
+postgres=16.10
+locust=locust 2.46.7 from /home/manyory/Documentos/PayCore/.venv/lib/python3.12/site-packages/locust (Python 3.12.3)

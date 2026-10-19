@@ -39,3 +39,6 @@ dist/
 
 # Datos locales
 pgdata/
+
+# Artefactos de las pruebas de carga
+performance/cuentas.json

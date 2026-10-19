@@ -6,6 +6,10 @@ con ninguna entidad financiera.
 
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
+
+import anyio.to_thread
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -25,11 +29,46 @@ bancarias ni con pasarelas de pago, y no mueve dinero real.
 """
 
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Alinea la concurrencia de peticiones con el pool de conexiones.
+
+    Los endpoints son síncronos, así que Starlette los ejecuta en el grupo de
+    hilos de AnyIO, que por defecto admite 40 a la vez. Si ese número es mayor
+    que las conexiones que el pool puede entregar, el exceso de peticiones se
+    queda esperando una conexión y acaba fallando por tiempo de espera.
+
+    Esto no es teórico: con el valor por defecto, la carga de solo lectura
+    producía errores `QueuePool limit of size 10 overflow 10 reached,
+    connection timed out, timeout 30.00` y latencias de 30 segundos en el
+    percentil 98. La medición está en docs/performance.md.
+
+    Igualando el límite de hilos a la capacidad del pool, el exceso espera en
+    una cola barata dentro del proceso en lugar de competir por conexiones.
+    """
+    settings = get_settings()
+    limitador = anyio.to_thread.current_default_thread_limiter()
+    limitador.total_tokens = settings.db_max_connections
+    logger.info(
+        "concurrencia_alineada",
+        extra={
+            "hilos_maximos": settings.db_max_connections,
+            "pool": settings.db_pool_size,
+            "overflow": settings.db_max_overflow,
+        },
+    )
+    yield
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
 
     app = FastAPI(
+        lifespan=lifespan,
         title="PayCore API",
         description=DESCRIPCION,
         version="0.1.0",
