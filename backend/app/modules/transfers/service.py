@@ -25,6 +25,7 @@ from app.modules.transfers.models import (
     STATUS_REJECTED,
     Transfer,
 )
+from app.platform.config import ConcurrencyStrategy, get_settings
 from app.platform.errors import NotFoundError, SameAccountTransferError, ValidationError
 from app.platform.money import MAX_TRANSFER_CENTS
 
@@ -58,6 +59,7 @@ def execute_transfer(
     destination_alias: str,
     amount_cents: int,
     concept: str | None = None,
+    strategy: ConcurrencyStrategy | None = None,
 ) -> TransferResult:
     """Mueve saldo entre dos cuentas, o deja constancia del rechazo.
 
@@ -82,10 +84,19 @@ def execute_transfer(
     if destino.id == source_account_id:
         raise SameAccountTransferError()
 
-    # Orden determinista de bloqueo: elimina la espera circular. Ver ADR-0005.
-    bloqueadas = accounts_service.lock_pair(session, source_account_id, destino.id)
-    origen = bloqueadas[source_account_id]
-    destino = bloqueadas[destino.id]
+    # En modo pesimista se bloquean las dos filas en orden ascendente de
+    # identificador, lo que elimina la espera circular. En modo SERIALIZABLE no
+    # se bloquea nada: el conflicto lo detecta el SSI de PostgreSQL y quien
+    # llama reintenta ante SQLSTATE 40001. Ver ADR-0005.
+    efectiva = strategy or get_settings().concurrency_strategy
+    cuentas = accounts_service.fetch_pair(
+        session,
+        source_account_id,
+        destino.id,
+        for_update=efectiva == ConcurrencyStrategy.PESSIMISTIC,
+    )
+    origen = cuentas[source_account_id]
+    destino = cuentas[destino.id]
 
     concepto = _sanitizar_concepto(concept)
 

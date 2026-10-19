@@ -8,9 +8,22 @@ Motor transaccional para una billetera digital simulada, construido para demostr
 
 ## Estado actual
 
-El proyecto está en construcción. Fases 1, 2 y 3 completadas (investigación, justificación del stack y diseño). La Fase 4 está en curso: hitos H1 a H6 terminados y verificados, con **76 pruebas en verde**.
+El proyecto está en construcción. Fases 1, 2 y 3 completadas (investigación, justificación del stack y diseño). La Fase 4 está casi terminada: hitos H1 a H8, con **86 pruebas en verde**.
 
-Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, idempotencia persistente e historial de movimientos. De las pruebas del enunciado están hechas la A (transferencia correcta), la B (fondos insuficientes), la C (solicitud duplicada) y la F (seguridad). Faltan la D (concurrencia) y la E (fallos).
+Funciona hoy: registro y autenticación con Argon2id y JWT, consulta de cuenta y saldo, transferencia entre cuentas con ledger de doble entrada, rechazo por fondos insuficientes, control de concurrencia con dos estrategias comparables, idempotencia persistente e historial de movimientos.
+
+**Las seis pruebas del enunciado están hechas y verificadas en la base de datos**, no en las respuestas HTTP:
+
+| | Escenario | Resultado |
+|---|---|---|
+| A | Ana S/100, Luis S/20, Ana envía S/30 | Ana S/70, Luis S/50, dos asientos que suman cero |
+| B | Ana intenta S/200 teniendo S/100 | Rechazada, saldos intactos, cero asientos |
+| C | Dos envíos con la misma clave de idempotencia | Una sola transferencia efectiva |
+| D | 100 peticiones concurrentes de S/30 sobre S/100 | Exactamente 3 aprobadas, saldo final S/10 |
+| E | Fallos antes y después del commit, y caída del proceso de base de datos | Atomicidad e idempotencia verificadas |
+| F | Operar sobre cuentas ajenas e importes inválidos | 19 pruebas por riesgo del OWASP API Top 10 2023 |
+
+Falta el rate limiting (H9), el frontend, las pruebas de carga con Locust y el informe en LaTeX.
 
 ### Levantarlo
 

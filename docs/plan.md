@@ -9,9 +9,9 @@ Estado al 18 de octubre de 2026.
 | 1. Investigación | [docs/research.md](research.md) | **Completada** |
 | 2. Justificación del stack | [docs/stack.md](stack.md), 8 ADRs en [docs/decisions/](decisions/) | **Completada** |
 | 3. Diseño funcional | [docs/architecture.md](architecture.md) | **Completada** (diseño propuesto, sin código) |
-| 4. Backend | API FastAPI, migraciones, invariantes | **En curso** (H1 a H6 hechos; faltan H7 concurrencia, H8 fallos y H9 rate limiting) |
+| 4. Backend | API FastAPI, migraciones, invariantes | **En curso** (H1 a H8 hechos; falta H9, rate limiting) |
 | 5. Interfaz web | React + Vite | Pendiente |
-| 6. Pruebas A-F | Suite pytest | **En curso**: A, B, C y F hechas y verificadas. Faltan D (concurrencia) y E (fallos) |
+| 6. Pruebas A-F | Suite pytest | **Completada**: A, B, C, D, E y F hechas y verificadas. 86 pruebas |
 | 7. Rendimiento | Locust, CSV y gráficos reales | Pendiente |
 | 8. Informe LaTeX | `docs/latex/main.tex` + PDF | Pendiente |
 | 9. README | `README.md` con capturas reales | Pendiente |
@@ -50,13 +50,15 @@ Tabla, reclamación con `ON CONFLICT DO NOTHING`, reproducción de respuesta, 40
 **Criterio:** Prueba C (reintento secuencial, un solo asiento par) y prueba de dos peticiones **simultáneas** con la misma clave.
 **Verificado:** 10 pruebas, incluida la concurrente con dos hilos y dos conexiones reales, en la que exactamente una reclama la clave. También se cubre que el rechazo 422 por fondos es idempotente, que el orden de los campos del JSON no cambia la huella, y que la clave de un usuario no sirve a otro. Caso que apareció al implementar y que el diseño no había previsto: si el `INSERT` choca con una fila que otra transacción aún no ha confirmado, en READ COMMITTED el `SELECT` posterior no la ve; se trata como petición en curso (409), que es la semántica correcta.
 
-### H7. Concurrencia
+### H7. Concurrencia — **completado**
 Orden determinista de bloqueo. Estrategia `serializable` con reintento ante 40001.
 **Criterio:** Prueba D con 100 peticiones concurrentes de 3000 ctms contra una cuenta de 10000 ctms: como máximo 3 confirmadas, saldo final 1000 ctms, reconciliación cuadrada. Prueba de transferencias cruzadas sin deadlock.
+**Verificado:** sí, con las dos estrategias y en tres ejecuciones reproducibles. Pesimista: 3 aprobadas y 97 rechazos de negocio, cero errores. `SERIALIZABLE`: 3 aprobadas y entre 3 y 5 peticiones que agotan los reintentos. 50 transferencias cruzadas simultáneas sin un solo deadlock. **La prueba destapó un lost update real** causado por el mapa de identidad de SQLAlchemy, que ninguna prueba de un solo hilo podía ver: está documentado en [docs/evidence/h7-h8-pruebas.md](evidence/h7-h8-pruebas.md) y en ADR-0005.
 
-### H8. Pruebas de fallo
+### H8. Pruebas de fallo — **completado**
 Inyección de fallo antes del `COMMIT`, después del `COMMIT` y antes de entregar la respuesta.
 **Criterio:** Prueba E. Tras el fallo previo al commit, cero asientos. Tras el fallo posterior al commit, el reintento con la misma clave devuelve la respuesta original y **no** crea asientos nuevos.
+**Verificado:** sí, los tres casos. Se añadió un tercero que no estaba planificado: matar el proceso servidor de PostgreSQL a mitad de la transacción con `pg_terminate_backend`, que es lo más parecido a un corte de luz reproducible. También una contraprueba con dos claves distintas que sí duplica, para dejar claro que lo que evita el duplicado es la clave y no otra propiedad del sistema.
 
 ### H9. Rate limiting y manejo de errores
 Límite por usuario e IP en login y transferencias, formato uniforme de error, `request_id` correlacionado en logs JSON.
