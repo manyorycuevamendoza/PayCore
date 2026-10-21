@@ -50,11 +50,11 @@ export function Acceso({ onSesion }: { onSesion: (token: string) => void }) {
           <p className="acceso__lema">Billetera digital con fondos simulados</p>
         </header>
 
-        <div className="pestanas" role="tablist" aria-label="Acceso">
+        <div className="pestanas" role="group" aria-label="Acceso">
           <button
             type="button"
-            role="tab"
-            aria-selected={modo === "entrar"}
+            disabled={enviando}
+            aria-pressed={modo === "entrar"}
             className={`pestana ${modo === "entrar" ? "pestana--activa" : ""}`}
             onClick={() => {
               setModo("entrar");
@@ -65,8 +65,8 @@ export function Acceso({ onSesion }: { onSesion: (token: string) => void }) {
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={modo === "registrarse"}
+            disabled={enviando}
+            aria-pressed={modo === "registrarse"}
             className={`pestana ${modo === "registrarse" ? "pestana--activa" : ""}`}
             onClick={() => {
               setModo("registrarse");
@@ -77,7 +77,10 @@ export function Acceso({ onSesion }: { onSesion: (token: string) => void }) {
           </button>
         </div>
 
-        <form onSubmit={enviar} noValidate>
+        <h2>{modo === "entrar" ? "Tu billetera de prueba" : "Crea tu billetera de prueba"}</h2>
+        <p className="seccion__descripcion">{modo === "entrar" ? "Ingresa para consultar tu saldo y enviar fondos simulados." : "Elige un alias para recibir transferencias. Tu cuenta empieza sin saldo."}</p>
+        <form onSubmit={enviar}>
+          <fieldset disabled={enviando} className="formulario__campos">
           {modo === "registrarse" ? (
             <>
               <div className="campo">
@@ -144,13 +147,14 @@ export function Acceso({ onSesion }: { onSesion: (token: string) => void }) {
             ) : null}
           </div>
 
+          </fieldset>
           {error ? <Aviso tono="error">{error}</Aviso> : null}
 
           <button type="submit" className="boton boton--principal" disabled={enviando}>
             {enviando ? (
               <Cargando texto={modo === "entrar" ? "Entrando" : "Creando cuenta"} />
             ) : modo === "entrar" ? (
-              "Entrar"
+              "Iniciar sesión"
             ) : (
               "Crear cuenta"
             )}

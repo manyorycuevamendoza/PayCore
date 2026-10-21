@@ -1,23 +1,22 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, NetworkError, api, nuevaClaveIdempotencia } from "../api/client";
-import { MoneyFormatError, formatCents, parseSolesToCents } from "../api/money";
+import { formatCents } from "../api/money";
+import { validarEnvio } from "../api/transfer-validation";
 import type { TransferResponse } from "../api/types";
 import { Aviso } from "./Aviso";
 import { Cargando } from "./Cargando";
 
 type Estado =
-  | { tipo: "inactivo" }
-  | { tipo: "enviando" }
+  | { tipo: "inactivo" | "revision" | "enviando" }
   | { tipo: "hecho"; transferencia: TransferResponse }
-  | { tipo: "rechazado"; mensaje: string; detalle?: string | undefined }
-  | { tipo: "incierto"; mensaje: string };
+  | { tipo: "rechazado" | "incierto"; mensaje: string };
 
-export function Transferir({
-  token,
-  saldoCents,
-  aliasPropio,
-  onCompletada,
-}: {
+type Operacion = {
+  clave: string;
+  datos: { destination_alias: string; amount_cents: number; concept: string | null };
+};
+
+export function Transferir({ token, saldoCents, aliasPropio, onCompletada }: {
   token: string;
   saldoCents: number | null;
   aliasPropio: string;
@@ -27,216 +26,126 @@ export function Transferir({
   const [importe, setImporte] = useState("");
   const [concepto, setConcepto] = useState("");
   const [estado, setEstado] = useState<Estado>({ tipo: "inactivo" });
+  // El cuerpo y la clave se conservan juntos hasta conocer el resultado.
+  const operacion = useRef<Operacion | null>(null);
+  const enCurso = useRef(false);
+  const resumen = useRef<HTMLHeadingElement>(null);
+  const destinoInput = useRef<HTMLInputElement>(null);
 
-  /**
-   * La clave de idempotencia se genera una vez por intento de operación y se
-   * CONSERVA entre reintentos. Si la respuesta se pierde y la persona vuelve
-   * a pulsar, se reenvía la misma clave y el servidor reproduce la respuesta
-   * original en lugar de mover el dinero por segunda vez.
-   */
-  const claveRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (estado.tipo === "revision" || estado.tipo === "hecho") resumen.current?.focus();
+  }, [estado.tipo]);
 
-  let importeCents: number | null = null;
-  let errorImporte: string | null = null;
-  if (importe.trim() !== "") {
-    try {
-      importeCents = parseSolesToCents(importe);
-    } catch (causa) {
-      errorImporte =
-        causa instanceof MoneyFormatError ? causa.message : "Importe inválido.";
-    }
+  const { alias, centimos, errorImporte, errorDestino, sinSaldo, motivo } =
+    validarEnvio(destino, importe, aliasPropio, saldoCents);
+  const revisando = ["revision", "enviando", "incierto"].includes(estado.tipo);
+
+  function revisar(evento: React.FormEvent) {
+    evento.preventDefault();
+    if (motivo || centimos === null || enCurso.current) return;
+    operacion.current = {
+      clave: nuevaClaveIdempotencia(),
+      datos: { destination_alias: alias, amount_cents: centimos, concept: concepto.trim() || null },
+    };
+    setEstado({ tipo: "revision" });
   }
 
-  const sinSaldo =
-    importeCents !== null && saldoCents !== null && importeCents > saldoCents;
-  const aSiMismo = destino.trim().toLowerCase() === aliasPropio;
-  const puedeEnviar =
-    importeCents !== null &&
-    destino.trim().length >= 3 &&
-    !aSiMismo &&
-    estado.tipo !== "enviando";
-
-  async function enviar(evento: React.FormEvent) {
-    evento.preventDefault();
-    if (importeCents === null) return;
-
-    if (claveRef.current === null) claveRef.current = nuevaClaveIdempotencia();
+  async function enviar() {
+    const intento = operacion.current;
+    if (!intento || enCurso.current) return;
+    enCurso.current = true;
     setEstado({ tipo: "enviando" });
-
     try {
-      const transferencia = await api.transferir(token, claveRef.current, {
-        destination_alias: destino.trim().toLowerCase(),
-        amount_cents: importeCents,
-        concept: concepto.trim() === "" ? null : concepto.trim(),
-      });
-      claveRef.current = null;
-      setEstado({ tipo: "hecho", transferencia });
-      setDestino("");
-      setImporte("");
-      setConcepto("");
+      const transferencia = await api.transferir(token, intento.clave, intento.datos);
+      if (transferencia.status === "pending") {
+        setEstado({ tipo: "incierto", mensaje: "El envío sigue pendiente. Reintenta para consultar el resultado de esta misma operación." });
+        return;
+      }
+      operacion.current = null;
+      if (transferencia.status === "rejected") {
+        setEstado({ tipo: "rechazado", mensaje: "El envío fue rechazado. Revisa el saldo y los datos antes de volver a intentarlo." });
+      } else {
+        setEstado({ tipo: "hecho", transferencia });
+        setDestino(""); setImporte(""); setConcepto("");
+      }
       onCompletada();
     } catch (causa) {
-      if (causa instanceof NetworkError) {
-        // No sabemos si llegó. La clave se conserva a propósito: volver a
-        // pulsar reenvía la misma y no puede duplicar el pago.
-        setEstado({
-          tipo: "incierto",
-          mensaje:
-            "No hemos podido confirmar la operación. Vuelve a pulsar Enviar: " +
-            "se reintentará de forma segura y no se cobrará dos veces.",
-        });
+      if (causa instanceof NetworkError || (causa instanceof ApiError && causa.esTemporal)) {
+        setEstado({ tipo: "incierto", mensaje: "Todavía no sabemos si el envío se completó. Conservamos sus datos: reintenta esta misma operación sin duplicar el envío." });
         return;
       }
-      if (causa instanceof ApiError) {
-        if (causa.code === "insufficient_funds") {
-          claveRef.current = null;
-          setEstado({
-            tipo: "rechazado",
-            mensaje: causa.message,
-            detalle:
-              typeof causa.details.balance_cents === "number"
-                ? `Saldo disponible: ${formatCents(causa.details.balance_cents)}`
-                : undefined,
-          });
-          onCompletada();
-          return;
-        }
-        if (causa.esTemporal) {
-          setEstado({
-            tipo: "incierto",
-            mensaje: `${causa.message} Puedes volver a pulsar Enviar sin riesgo de duplicar.`,
-          });
-          return;
-        }
-        claveRef.current = null;
-        setEstado({ tipo: "rechazado", mensaje: causa.message });
+      // Una respuesta inesperada tampoco demuestra que la operación falló.
+      if (!(causa instanceof ApiError)) {
+        setEstado({ tipo: "incierto", mensaje: "No pudimos confirmar el resultado. Reintenta esta misma operación para evitar duplicados." });
         return;
       }
-      claveRef.current = null;
-      setEstado({ tipo: "rechazado", mensaje: "Ha ocurrido un error inesperado." });
-    }
+      operacion.current = null;
+      setEstado({ tipo: "rechazado", mensaje: causa.message });
+      if (causa.code === "insufficient_funds") onCompletada();
+    } finally { enCurso.current = false; }
   }
 
   return (
     <section className="tarjeta" aria-labelledby="titulo-transferir">
-      <h2 id="titulo-transferir">Transferir</h2>
+      <div className="tarjeta__cabecera">
+        <h2 id="titulo-transferir">Enviar dinero simulado</h2>
+        <span className="etiqueta">{revisando ? "Paso 2 de 2" : "Paso 1 de 2"}</span>
+      </div>
+      <p className="seccion__descripcion">{revisando ? "Comprueba los datos antes de confirmar." : "Indica a quién y cuánto. Podrás revisarlo antes de enviar."}</p>
 
-      <form onSubmit={enviar} noValidate>
-        <div className="campo">
-          <label htmlFor="destino">Alias de destino</label>
-          <input
-            id="destino"
-            value={destino}
-            onChange={(e) => {
-              setDestino(e.target.value.toLowerCase());
-              if (estado.tipo !== "enviando") setEstado({ tipo: "inactivo" });
-            }}
-            placeholder="luis"
-            autoComplete="off"
-            required
-            aria-invalid={aSiMismo}
-            aria-describedby={aSiMismo ? "destino-error" : undefined}
-          />
-          {aSiMismo ? (
-            <p id="destino-error" className="campo__error">
-              No puedes transferirte a tu propia cuenta.
-            </p>
-          ) : null}
+      {estado.tipo === "hecho" ? (
+        <Aviso tono="exito" titulo="Transferencia completada">
+          <h3 ref={resumen} tabIndex={-1} className="comprobante__importe">{formatCents(estado.transferencia.amount_cents)}</h3>
+          Enviados a <strong>@{estado.transferencia.destination_alias}</strong>.
+          <p className="campo__ayuda">Puedes consultar este envío en Movimientos.</p>
+          <details><summary>Ver comprobante</summary><span className="monoespacio">Operación {estado.transferencia.id}</span></details>
+        </Aviso>
+      ) : null}
+      {estado.tipo === "rechazado" ? <Aviso tono="error" titulo="No se realizó la transferencia">{estado.mensaje} Tus datos se conservan para que puedas corregirlos.</Aviso> : null}
+
+      {revisando && operacion.current ? (
+        <div aria-busy={estado.tipo === "enviando"}>
+          <h3 ref={resumen} tabIndex={-1} className="revision__titulo">Revisa tu envío</h3>
+          <dl className="revision">
+            <div><dt>Desde tu cuenta</dt><dd>@{aliasPropio}</dd></div>
+            <div><dt>Para el alias</dt><dd>@{operacion.current.datos.destination_alias}</dd></div>
+            <div><dt>Importe simulado</dt><dd>{formatCents(operacion.current.datos.amount_cents)}</dd></div>
+            {operacion.current.datos.concept ? <div><dt>Concepto</dt><dd>{operacion.current.datos.concept}</dd></div> : null}
+            {estado.tipo === "revision" && saldoCents !== null ? <div><dt>Te quedaría</dt><dd>{formatCents(saldoCents - operacion.current.datos.amount_cents)}</dd></div> : null}
+          </dl>
+          {estado.tipo === "incierto" ? <Aviso tono="informacion" titulo="Resultado sin confirmar">{estado.mensaje}</Aviso> : null}
+          <button type="button" className="boton boton--principal" disabled={estado.tipo === "enviando"} onClick={() => void enviar()}>
+            {estado.tipo === "enviando" ? <Cargando texto="Confirmando envío…" /> : estado.tipo === "incierto" ? "Reintentar el mismo envío" : `Confirmar envío de ${formatCents(operacion.current.datos.amount_cents)}`}
+          </button>
+          {estado.tipo === "revision" ? <button type="button" className="boton boton--secundario" onClick={() => {
+            operacion.current = null;
+            setEstado({ tipo: "inactivo" });
+            requestAnimationFrame(() => destinoInput.current?.focus());
+          }}>Volver y corregir</button> : null}
         </div>
-
-        <div className="campo">
-          <label htmlFor="importe">Importe en soles simulados</label>
-          <div className="campo__prefijado">
-            <span aria-hidden="true">S/</span>
-            <input
-              id="importe"
-              inputMode="decimal"
-              value={importe}
-              onChange={(e) => {
-                setImporte(e.target.value);
-                if (estado.tipo !== "enviando") setEstado({ tipo: "inactivo" });
-              }}
-              placeholder="30.00"
-              autoComplete="off"
-              required
-              aria-invalid={errorImporte !== null || sinSaldo}
-              aria-describedby="importe-ayuda"
-            />
+      ) : (
+        <form onSubmit={revisar}>
+          <div className="campo">
+            <label htmlFor="destino">Alias de quien recibe</label>
+            <input ref={destinoInput} id="destino" value={destino} onChange={(e) => setDestino(e.target.value.toLowerCase())} placeholder="Ejemplo: luis" autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={32} aria-invalid={!!errorDestino} aria-describedby="destino-ayuda" />
+            <p id="destino-ayuda" className={errorDestino ? "campo__error" : "campo__ayuda"}>{errorDestino ?? "Pide a la otra persona el alias de su cuenta PayCore."}</p>
           </div>
-          <p id="importe-ayuda" className={errorImporte || sinSaldo ? "campo__error" : "campo__ayuda"}>
-            {errorImporte ??
-              (sinSaldo
-                ? "El importe supera tu saldo disponible."
-                : importeCents !== null
-                  ? `Se enviarán ${formatCents(importeCents)}`
-                  : "Como mucho dos decimales.")}
-          </p>
-        </div>
-
-        <div className="campo">
-          <label htmlFor="concepto">
-            Concepto <span className="campo__opcional">(opcional)</span>
-          </label>
-          <input
-            id="concepto"
-            value={concepto}
-            onChange={(e) => setConcepto(e.target.value)}
-            maxLength={140}
-            autoComplete="off"
-          />
-        </div>
-
-        {estado.tipo === "hecho" ? (
-          <Aviso
-            tono="exito"
-            titulo="Transferencia completada"
-            onCerrar={() => setEstado({ tipo: "inactivo" })}
-          >
-            Enviaste {formatCents(estado.transferencia.amount_cents)} a{" "}
-            <strong>{estado.transferencia.destination_alias}</strong>.
-            <br />
-            <span className="monoespacio">
-              Operación {estado.transferencia.id}
-            </span>
-          </Aviso>
-        ) : null}
-
-        {estado.tipo === "rechazado" ? (
-          <Aviso
-            tono="error"
-            titulo="No se realizó la transferencia"
-            onCerrar={() => setEstado({ tipo: "inactivo" })}
-          >
-            {estado.mensaje}
-            {estado.detalle ? (
-              <>
-                <br />
-                {estado.detalle}
-              </>
-            ) : null}
-          </Aviso>
-        ) : null}
-
-        {estado.tipo === "incierto" ? (
-          <Aviso tono="informacion" titulo="Resultado no confirmado">
-            {estado.mensaje}
-          </Aviso>
-        ) : null}
-
-        <button
-          type="submit"
-          className="boton boton--principal"
-          disabled={!puedeEnviar}
-        >
-          {estado.tipo === "enviando" ? (
-            <Cargando texto="Enviando" />
-          ) : estado.tipo === "incierto" ? (
-            "Reintentar envío"
-          ) : (
-            "Enviar"
-          )}
-        </button>
-      </form>
+          <div className="campo">
+            <label htmlFor="importe">¿Cuánto quieres enviar?</label>
+            <div className="campo__prefijado"><span aria-hidden="true">S/</span>
+              <input id="importe" inputMode="decimal" value={importe} onChange={(e) => setImporte(e.target.value)} placeholder="0.00" autoComplete="off" required aria-invalid={!!errorImporte || sinSaldo} aria-describedby="importe-ayuda saldo-ayuda" />
+            </div>
+            <p id="saldo-ayuda" className="campo__ayuda">Disponible: {saldoCents === null ? "Cargando…" : `${formatCents(saldoCents)} simulados`}</p>
+            <p id="importe-ayuda" className={errorImporte || sinSaldo ? "campo__error" : "campo__ayuda"}>{errorImporte ?? (sinSaldo ? "El importe supera tu saldo. Escribe una cantidad menor." : "Usa hasta dos decimales. Ejemplo: 30.50")}</p>
+          </div>
+          <div className="campo">
+            <label htmlFor="concepto">Concepto <span className="campo__opcional">(opcional)</span></label>
+            <input id="concepto" value={concepto} onChange={(e) => setConcepto(e.target.value)} maxLength={140} placeholder="Ejemplo: Almuerzo" autoComplete="off" />
+          </div>
+          <button type="submit" className="boton boton--principal" disabled={motivo !== null} aria-describedby="envio-ayuda">Revisar envío →</button>
+          <p id="envio-ayuda" className="campo__ayuda">{motivo ?? "Revisar los datos todavía no realiza la transferencia."}</p>
+        </form>
+      )}
     </section>
   );
 }

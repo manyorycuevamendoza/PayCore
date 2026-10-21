@@ -86,12 +86,19 @@ export function Panel({
             className="boton boton--texto"
             onClick={onCerrarSesion}
           >
-            Salir
+            Cerrar sesión
           </button>
         </div>
       </header>
 
       <main className="panel__contenido">
+        <div className="panel__encabezado">
+          <div><p className="sobretitulo">TU BILLETERA DE PRUEBA</p><h1>Mi cuenta</h1>
+          <p className="seccion__descripcion">Consulta tu saldo, envía y revisa tus movimientos.</p></div>
+          <button type="button" className="boton boton--actualizar" disabled={cargando} onClick={() => void cargar(0)}>
+            {cargando ? "Actualizando…" : "↻ Actualizar saldo y movimientos"}
+          </button>
+        </div>
         {error ? (
           <Aviso tono="error" onCerrar={() => setError(null)}>
             {error}{" "}
@@ -118,6 +125,7 @@ export function Panel({
               <Esqueleto ancho="12ch" />
             </p>
           )}
+          {cuenta ? <p className="saldo__alias">Tu alias para recibir: <strong>@{cuenta.alias}</strong></p> : null}
           <p className="tarjeta--saldo__nota">
             Soles peruanos simulados (PEN). Sin valor real.
           </p>

@@ -20,10 +20,11 @@ export function Historial({
       <div className="tarjeta__cabecera">
         <h2 id="titulo-historial">Movimientos</h2>
         {!cargando ? (
-          <span className="etiqueta">{total}</span>
+          <span className="etiqueta">{total} en total</span>
         ) : null}
       </div>
 
+      <p className="seccion__descripcion">Tus envíos y lo que has recibido, del más reciente al más antiguo.</p>
       {cargando && movimientos.length === 0 ? (
         <ul className="movimientos">
           {[0, 1, 2].map((i) => (
@@ -50,7 +51,7 @@ export function Historial({
               </span>
               <div className="movimiento__detalle">
                 <span className="movimiento__contraparte">
-                  {m.direction === "in" ? "De" : "A"} {m.counterparty_alias}
+                  {m.direction === "in" ? "Recibido de" : "Enviado a"} @{m.counterparty_alias}
                 </span>
                 <span className="movimiento__fecha">
                   {formatDateTime(m.created_at)}
@@ -78,7 +79,7 @@ export function Historial({
           onClick={onVerMas}
           disabled={cargando}
         >
-          {cargando ? "Cargando" : "Ver más"}
+          {cargando ? "Cargando…" : `Ver más movimientos (${movimientos.length} de ${total})`}
         </button>
       ) : null}
     </section>

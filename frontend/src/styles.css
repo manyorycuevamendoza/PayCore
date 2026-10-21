@@ -600,3 +600,31 @@ h2 {
 .pie .aviso {
   font-size: 0.8125rem;
 }
+
+/* Jerarquía de tareas y revisión previa del envío. */
+.panel__encabezado { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem 0; }
+.panel__encabezado h1 { font-size: clamp(1.6rem, 4vw, 2rem); letter-spacing: -.035em; }
+.sobretitulo { color: var(--acento); font-size: .75rem; font-weight: 700; letter-spacing: .12em; margin: 0 0 .4rem; }
+.seccion__descripcion { color: var(--texto-tenue); font-size: .875rem; margin: .5rem 0 1.25rem; }
+.panel__encabezado .seccion__descripcion { margin-bottom: 0; }
+.boton--actualizar { background: var(--superficie); border-color: var(--borde); color: var(--acento); font-size: .875rem; }
+.saldo__alias { margin: .75rem 0 0; font-size: .9375rem; }
+.revision { margin: 1rem 0; padding: .25rem 1rem; background: var(--superficie-2); border: 1px solid var(--borde); border-radius: 10px; }
+.revision > div { padding: .75rem 0; border-bottom: 1px solid var(--borde); }
+.revision > div:last-child { border: 0; }
+.revision dt { color: var(--texto-tenue); font-size: .8125rem; }
+.revision dd { font-weight: 650; margin: .25rem 0 0; overflow-wrap: anywhere; }
+.revision__titulo { font-size: 1rem; }
+.comprobante__importe { margin: .5rem 0; font-size: 1.5rem; }
+.formulario__campos { padding: 0; margin: 0; border: 0; min-width: 0; }
+.boton, .pestana, .aviso__cerrar { min-height: 44px; }
+summary { cursor: pointer; text-decoration: underline; padding: .5rem 0; }
+.boton:hover:not(:disabled), .pestana:hover:not(:disabled) { filter: brightness(.95); }
+@media (max-width: 40rem) {
+  .panel__encabezado { align-items: stretch; flex-direction: column; }
+  .barra { align-items: flex-start; }
+  .barra__derecha { flex-wrap: wrap; justify-content: flex-end; gap: .25rem .75rem; }
+  .barra__usuario { text-align: right; overflow-wrap: anywhere; }
+  .movimiento { gap: .5rem; }
+  .movimiento__contraparte { white-space: normal; overflow-wrap: anywhere; font-size: .875rem; }
+}
