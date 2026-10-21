@@ -4,7 +4,13 @@
 
 > **Prototipo educativo.** Billetera digital con fondos **simulados** en soles peruanos (PEN). No se conecta a Yape, a Credicorp, a ninguna entidad bancaria ni a ninguna pasarela de pago. No mueve dinero real y no utiliza marcas ni identidades visuales de terceros.
 
-Motor transaccional para una billetera digital simulada, construido para demostrar competencias en transacciones ACID, concurrencia, idempotencia, diseño de bases de datos, seguridad de APIs y medición de rendimiento.
+Motor transaccional de una billetera digital con saldo simulado. **Lo que demuestra, con evidencia reproducible:**
+
+- **Detecté y corregí una actualización perdida que 76 pruebas de un solo hilo no veían.** Con el defecto presente, 100 peticiones concurrentes sobre una cuenta de S/100 aprobaban 88 transferencias de S/30 cuando el máximo posible eran 3. El bloqueo `SELECT FOR UPDATE` era correcto; el mapa de identidad del ORM devolvía el saldo obsoleto.
+- **Medir no es lo mismo que verificar.** Bajo contención máxima, dos estrategias de concurrencia parecían diferir un 57 % en peticiones por segundo. Contando filas en PostgreSQL, la diferencia real era de **148,3 contra 10,4 transferencias confirmadas por segundo**.
+- **Una prueba de carga encontró un fallo de configuración** que multiplicó por **7,4** el rendimiento de lectura al corregirlo, y bajó el percentil 99 de 31 000 ms a 840 ms.
+
+**96 pruebas automatizadas** contra PostgreSQL real, no SQLite: verifican restricciones del motor, triggers, bloqueos y niveles de aislamiento. Las aserciones sobre dinero consultan la base de datos, nunca los códigos HTTP.
 
 **Autora:** Manyory Estefany Cueva Mendoza
 
