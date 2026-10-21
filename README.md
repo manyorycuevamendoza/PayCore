@@ -1,5 +1,7 @@
 # PayCore
 
+[![CI](https://github.com/manyorycuevamendoza/PayCore/actions/workflows/ci.yml/badge.svg)](https://github.com/manyorycuevamendoza/PayCore/actions/workflows/ci.yml)
+
 > **Prototipo educativo.** Billetera digital con fondos **simulados** en soles peruanos (PEN). No se conecta a Yape, a Credicorp, a ninguna entidad bancaria ni a ninguna pasarela de pago. No mueve dinero real y no utiliza marcas ni identidades visuales de terceros.
 
 Motor transaccional para una billetera digital simulada, construido para demostrar competencias en transacciones ACID, concurrencia, idempotencia, diseño de bases de datos, seguridad de APIs y medición de rendimiento.
